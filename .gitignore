@@ -2,3 +2,4 @@ web/odin.js
 web/wgpu.js
 web/game.wasm
 odin-wgpu
+odin-wgpu.exe

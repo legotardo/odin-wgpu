@@ -1,6 +1,5 @@
 package renderer
 
-import "../game"
 import "vendor:wgpu"
 
 default_shader_src := #load("../assets/shaders/minimal.wgsl")
@@ -90,10 +89,10 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView) {
 }
 
 renderer_destroy :: proc(r: ^Renderer) {
-	wgpu.DeviceRelease(r.device)
-	wgpu.QueueRelease(r.queue)
-
 	mesh_destroy(&r.quad_mesh)
 	material_destroy(&r.quad_material)
 	render_camera_destroy(&r.camera)
+
+	wgpu.DeviceRelease(r.device)
+	wgpu.QueueRelease(r.queue)
 }

@@ -24,7 +24,9 @@ Window :: struct {
 create_window :: proc() -> Window {
 	glfw.SetErrorCallback(error_callback)
 
-	glfw.InitHint(glfw.PLATFORM, glfw.PLATFORM_X11)
+	if ODIN_OS == .Linux {
+		glfw.InitHint(glfw.PLATFORM, glfw.PLATFORM_X11)
+	}
 
 	intialized := glfw.Init()
 	assert(intialized == true, "GLFW failed to init")
