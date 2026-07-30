@@ -61,7 +61,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView) {
 		0,
 		r.quad_mesh.vertex_buffer,
 		0,
-		u64(size_of(Vertex) * r.quad_mesh.vertex_count),
+		wgpu.WHOLE_SIZE,
 	)
 	wgpu.RenderPassEncoderSetIndexBuffer(
 		render_pass_encoder,

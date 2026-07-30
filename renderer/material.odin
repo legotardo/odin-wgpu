@@ -28,6 +28,8 @@ material_create :: proc(
 		},
 	)
 
+	layouts := [1]wgpu.VertexBufferLayout{vertex_layout}
+
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		device,
 		&{
@@ -36,7 +38,7 @@ material_create :: proc(
 				module = shader_module,
 				entryPoint = "vs_main",
 				bufferCount = 1,
-				buffers = raw_data([]wgpu.VertexBufferLayout{vertex_layout}),
+				buffers = raw_data(layouts[:]),
 			},
 			fragment = &{
 				module = shader_module,
