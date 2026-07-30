@@ -53,29 +53,41 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView) {
 	)
 
 	wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, r.quad_material.pipeline)
-	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.camera.bind_group, {})
 
-	// for obj in objects {
+	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.camera.bind_group)
+
+
+	// // for obj in objects {
+	// fmt.printf("Vertex = %d | Index = %d", r.quad_mesh.vertex_count, r.quad_mesh.index_count)
 	wgpu.RenderPassEncoderSetVertexBuffer(
 		render_pass_encoder,
 		0,
 		r.quad_mesh.vertex_buffer,
 		0,
-		wgpu.WHOLE_SIZE,
+		u64(size_of(Vertex) * r.quad_mesh.vertex_count),
 	)
-	wgpu.RenderPassEncoderSetIndexBuffer(
+	// wgpu.RenderPassEncoderSetIndexBuffer(
+	// 	render_pass_encoder,
+	// 	r.quad_mesh.index_buffer,
+	// 	.Uint16,
+	// 	0,
+	// 	u64(size_of(u16) * r.quad_mesh.index_count),
+	// )
+	// wgpu.RenderPassEncoderDrawIndexed(
+	// 	render_pass_encoder,
+	// 	indexCount = r.quad_mesh.index_count,
+	// 	instanceCount = 1,
+	// 	firstIndex = 0,
+	// 	baseVertex = 0,
+	// 	firstInstance = 0,
+	// )
+
+
+	wgpu.RenderPassEncoderDraw(
 		render_pass_encoder,
-		r.quad_mesh.index_buffer,
-		.Uint16,
-		0,
-		u64(size_of(u16) * r.quad_mesh.index_count),
-	)
-	wgpu.RenderPassEncoderDrawIndexed(
-		render_pass_encoder,
-		indexCount = r.quad_mesh.index_count,
+		vertexCount = 3,
 		instanceCount = 1,
-		firstIndex = 0,
-		baseVertex = 0,
+		firstVertex = 0,
 		firstInstance = 0,
 	)
 

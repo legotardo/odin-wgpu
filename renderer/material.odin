@@ -22,8 +22,8 @@ material_create :: proc(
 	pipeline_layout := wgpu.DeviceCreatePipelineLayout(
 		device,
 		&{
-			bindGroupLayouts = raw_data(bind_group_layouts),
-			bindGroupLayoutCount = len(bind_group_layouts),
+			// bindGroupLayouts = raw_data(bind_group_layouts[:]),
+			// bindGroupLayoutCount = len(bind_group_layouts),
 			immediateSize = 0,
 		},
 	)

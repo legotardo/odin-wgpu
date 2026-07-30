@@ -9,16 +9,16 @@ Mesh :: struct {
 	index_count:   u32,
 }
 
-mesh_create :: proc(device: wgpu.Device, vertices: []$V, indices: []u16) -> Mesh {
+mesh_create :: proc(device: wgpu.Device, vertices: []Vertex, indices: []u16) -> Mesh {
 	vertex_buffer := wgpu.DeviceCreateBufferWithDataSlice(
 		device,
 		&{label = "mesh vertex buffer", usage = {.Vertex}},
-		vertices,
+		vertices[:],
 	)
 	index_buffer := wgpu.DeviceCreateBufferWithDataSlice(
 		device,
 		&{label = "index buffer", usage = {.Index}},
-		indices,
+		indices[:],
 	)
 
 	return {

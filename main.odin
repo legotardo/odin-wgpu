@@ -25,7 +25,6 @@ main :: proc() {
 	state.window.resize_callback = resize
 
 	wgpu_initialize(&state.window)
-
 	platform.run(&state.window, update, finish)
 }
 
