@@ -2,29 +2,37 @@ package main
 
 import "base:runtime"
 import "core:fmt"
+import "core:math/linalg"
 import "vendor:wgpu"
 
-import platform "platform"
+import "game"
+import "platform"
 
 default_shader_src := #load("assets/shaders/minimal.wgsl")
 
 state: struct {
-	ctx:             runtime.Context,
-	window:          platform.Window,
-	instance:        wgpu.Instance,
-	surface:         wgpu.Surface,
-	adapter:         wgpu.Adapter,
-	device:          wgpu.Device,
-	config:          wgpu.SurfaceConfiguration,
-	queue:           wgpu.Queue,
-	pipeline:        wgpu.RenderPipeline,
-	pipeline_layout: wgpu.PipelineLayout,
-	shader_module:   wgpu.ShaderModule,
+	ctx:               runtime.Context,
+	window:            platform.Window,
+	instance:          wgpu.Instance,
+	surface:           wgpu.Surface,
+	adapter:           wgpu.Adapter,
+	device:            wgpu.Device,
+	config:            wgpu.SurfaceConfiguration,
+	queue:             wgpu.Queue,
+	render_pipeline:   wgpu.RenderPipeline,
+	pipeline_layout:   wgpu.PipelineLayout,
+	shader_module:     wgpu.ShaderModule,
+	vertex_buffer:     wgpu.Buffer,
+	index_buffer:      wgpu.Buffer,
+	camera:            game.Camera,
+	camera_buffer:     wgpu.Buffer,
+	camera_bind_group: wgpu.BindGroup,
 }
 
 main :: proc() {
 	// Caution to use defer here, because web don't lock this function til finish
 	state.window = platform.create_window()
+	state.camera = game.camera_new(state.window.width, state.window.height)
 
 	state.window.resize_callback = resize
 
@@ -67,7 +75,6 @@ main :: proc() {
 		state.device = device
 
 		width, height := platform.get_frame_size(&state.window)
-		fmt.printf("W = %d H = %d", width, height)
 		state.config = wgpu.SurfaceConfiguration {
 			width       = width,
 			height      = height,
@@ -91,12 +98,80 @@ main :: proc() {
 				},
 			},
 		)
-		state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(state.device, &{})
-		state.pipeline = wgpu.DeviceCreateRenderPipeline(
+
+
+		state.vertex_buffer = wgpu.DeviceCreateBufferWithDataSlice(
+			state.device,
+			&{label = "vertex buffer", usage = {.Vertex}},
+			game.sample_vertex[:],
+		)
+		state.index_buffer = wgpu.DeviceCreateBufferWithDataSlice(
+			state.device,
+			&{label = "index buffer", usage = {.Index}},
+			game.sample_indices[:],
+		)
+		state.camera_buffer = wgpu.DeviceCreateBufferWithDataTyped(
+			state.device,
+			&{label = "camera buffer", usage = {.Uniform, .CopyDst}},
+			game.camera_build_matrix(&state.camera),
+		)
+
+
+		layout_entries := [1]wgpu.BindGroupLayoutEntry {
+			{
+				binding = 0,
+				visibility = {.Vertex},
+				buffer = {
+					type = .Uniform,
+					hasDynamicOffset = false,
+					minBindingSize = size_of(linalg.Matrix4f32),
+				},
+			},
+		}
+		camera_bind_group_layout := wgpu.DeviceCreateBindGroupLayout(
+			state.device,
+			&{
+				entries = raw_data(layout_entries[:]),
+				entryCount = len(layout_entries),
+				label = "camera bind group layout",
+			},
+		)
+
+		bind_group_entries := [1]wgpu.BindGroupEntry {
+			{binding = 0, buffer = state.camera_buffer, size = size_of(linalg.Matrix4f32)},
+		}
+		state.camera_bind_group = wgpu.DeviceCreateBindGroup(
+			state.device,
+			&{
+				layout = camera_bind_group_layout,
+				entries = raw_data(bind_group_entries[:]),
+				entryCount = len(bind_group_entries),
+				label = "camera bind group",
+			},
+		)
+
+		bind_group_layouts := [1]wgpu.BindGroupLayout{camera_bind_group_layout}
+		state.pipeline_layout = wgpu.DeviceCreatePipelineLayout(
+			state.device,
+			&{
+				bindGroupLayouts = raw_data(bind_group_layouts[:]),
+				bindGroupLayoutCount = 1,
+				immediateSize = 0,
+			},
+		)
+
+		state.render_pipeline = wgpu.DeviceCreateRenderPipeline(
 			state.device,
 			&{
 				layout = state.pipeline_layout,
-				vertex = {module = state.shader_module, entryPoint = "vs_main"},
+				vertex = {
+					module = state.shader_module,
+					entryPoint = "vs_main",
+					buffers = raw_data(
+						[]wgpu.VertexBufferLayout{game.vertex_to_wgpu(game.sample_vertex[:])},
+					),
+					bufferCount = 1,
+				},
 				fragment = &{
 					module = state.shader_module,
 					entryPoint = "fs_main",
@@ -161,12 +236,29 @@ update :: proc(dt: f32) {
 		},
 	)
 
-	wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, state.pipeline)
-	wgpu.RenderPassEncoderDraw(
+	wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, state.render_pipeline)
+	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, state.camera_bind_group, {})
+
+	wgpu.RenderPassEncoderSetVertexBuffer(
 		render_pass_encoder,
-		vertexCount = 3,
+		0,
+		state.vertex_buffer,
+		0,
+		u64(size_of(game.Vertex) * len(game.sample_vertex)),
+	)
+	wgpu.RenderPassEncoderSetIndexBuffer(
+		render_pass_encoder,
+		state.index_buffer,
+		.Uint16,
+		0,
+		u64(size_of(u16) * len(game.sample_indices)),
+	)
+	wgpu.RenderPassEncoderDrawIndexed(
+		render_pass_encoder,
+		indexCount = len(game.sample_indices),
 		instanceCount = 1,
-		firstVertex = 0,
+		firstIndex = 0,
+		baseVertex = 0,
 		firstInstance = 0,
 	)
 
@@ -185,10 +277,16 @@ resize :: proc(width, height: u32) {
 
 	state.config.width, state.config.height = platform.get_frame_size(&state.window)
 	wgpu.SurfaceConfigure(state.surface, &state.config)
+
+	if state.camera_buffer != nil {
+		state.camera.aspect = f32(state.config.width) / f32(state.config.height)
+		mat := game.camera_build_matrix(&state.camera)
+		wgpu.QueueWriteBuffer(state.queue, state.camera_buffer, 0, &mat, size_of(mat))
+	}
 }
 
 finish :: proc() {
-	wgpu.RenderPipelineRelease(state.pipeline)
+	wgpu.RenderPipelineRelease(state.render_pipeline)
 	wgpu.PipelineLayoutRelease(state.pipeline_layout)
 	wgpu.ShaderModuleRelease(state.shader_module)
 	wgpu.QueueRelease(state.queue)
@@ -196,5 +294,7 @@ finish :: proc() {
 	wgpu.AdapterRelease(state.adapter)
 	wgpu.SurfaceRelease(state.surface)
 	wgpu.InstanceRelease(state.instance)
+	wgpu.BufferRelease(state.vertex_buffer)
+
 	platform.destroy_window(&state.window)
 }
