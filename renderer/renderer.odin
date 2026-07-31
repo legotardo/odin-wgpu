@@ -13,8 +13,8 @@ RenderItem :: struct {
 	material: ^Material,
 }
 
-renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, width, height: u32) -> Renderer {
-	camera := render_camera_create(device, width, height)
+renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Renderer {
+	camera := render_camera_create(device)
 
 	return {camera = camera, device = device, queue = queue}
 }

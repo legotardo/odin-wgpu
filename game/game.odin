@@ -1,9 +1,12 @@
 package game
 
+import "core:math/linalg"
+import "vendor:wgpu"
+
 import "../ecs"
 import "../input"
+import "../platform"
 import "../renderer"
-import "vendor:wgpu"
 
 default_shader_src := #load("../assets/shaders/minimal.wgsl")
 
@@ -14,8 +17,9 @@ GameState :: struct {
 	world:    ^ecs.World,
 }
 
-game_init :: proc(r: ^renderer.Renderer) -> GameState {
+game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState {
 	assets := assets_init()
+	input := input.input_init()
 
 	// assets
 	minimal_material := assets_register_material(
@@ -38,6 +42,23 @@ game_init :: proc(r: ^renderer.Renderer) -> GameState {
 
 	world := ecs.world_init()
 
+	width, height := platform.get_frame_size(window)
+	camera := ecs.entity_create(world)
+	ecs.entity_add_transform(world, camera, {position = {0, 0, 2}, scale = {1, 1, 1}})
+	ecs.entity_add_first_person(world, camera, {sensitivity = 0.1, pitch = 0, yaw = 0, speed = 3})
+	ecs.entity_add_camera(
+		world,
+		camera,
+		{
+			target = {0, 0, 0},
+			up = {0, 1, 0},
+			aspect = f32(width) / f32(height),
+			fovy = 90 * linalg.RAD_PER_DEG,
+			zfar = 100,
+			znear = 0.1,
+		},
+	)
+
 	quad := ecs.entity_create(world)
 	ecs.entity_add_transform(world, quad, {})
 	ecs.entity_add_render(
@@ -46,11 +67,13 @@ game_init :: proc(r: ^renderer.Renderer) -> GameState {
 		{mesh = string(quad_mesh), material = string(minimal_material)},
 	)
 
-	return {assets = assets, renderer = r, world = world}
+	return {assets = assets, renderer = r, world = world, input = input}
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
 	// fmt.printf("%f FPS\n", 1 / dt)
+
+	system_update_camera(state, dt)
 
 	input.input_update(&state.input)
 }

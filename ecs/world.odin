@@ -1,10 +1,12 @@
 package ecs
 
-MAX_ENTITIES :: 10000
+MAX_ENTITIES :: 100
 
 ComponentType :: enum {
-	Transform,
-	Render,
+	TransformComponent,
+	RenderComponent,
+	CameraComponent,
+	FirstPersonComponent,
 }
 
 ComponentMask :: bit_set[ComponentType]
@@ -14,8 +16,12 @@ World :: struct {
 	entity_generations: [MAX_ENTITIES]u32,
 	free_indices:       [dynamic]u32,
 	masks:              [MAX_ENTITIES]ComponentMask,
-	transforms:         [MAX_ENTITIES]Transform,
-	renders:            [MAX_ENTITIES]Render,
+
+	// Components
+	transforms:         [MAX_ENTITIES]TransformComponent,
+	renders:            [MAX_ENTITIES]RenderComponent,
+	first_persons:      [MAX_ENTITIES]FirstPersonComponent,
+	cameras:            [1]CameraComponent,
 }
 
 world_init :: proc(allocator := context.allocator) -> ^World {
@@ -64,14 +70,26 @@ entity_destroy :: proc(w: ^World, e: Entity) {
 	append(&w.free_indices, idx)
 }
 
-entity_add_transform :: proc(w: ^World, e: Entity, t: Transform) {
+entity_add_transform :: proc(w: ^World, e: Entity, t: TransformComponent) {
 	idx := entity_index(e)
 	w.transforms[idx] = t
-	w.masks[idx] += {.Transform}
+	w.masks[idx] += {.TransformComponent}
 }
 
-entity_add_render :: proc(w: ^World, e: Entity, r: Render) {
+entity_add_render :: proc(w: ^World, e: Entity, r: RenderComponent) {
 	idx := entity_index(e)
 	w.renders[idx] = r
-	w.masks[idx] += {.Render}
+	w.masks[idx] += {.RenderComponent}
+}
+
+entity_add_camera :: proc(w: ^World, e: Entity, r: CameraComponent) {
+	idx := entity_index(e)
+	w.cameras[idx] = r
+	w.masks[idx] += {.CameraComponent}
+}
+
+entity_add_first_person :: proc(w: ^World, e: Entity, r: FirstPersonComponent) {
+	idx := entity_index(e)
+	w.first_persons[idx] = r
+	w.masks[idx] += {.FirstPersonComponent}
 }

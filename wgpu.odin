@@ -11,6 +11,7 @@ import "renderer"
 wgpu_initialize :: proc(window: ^platform.Window) {
 	state.window.resize_callback = resize
 	state.window.key_callback = key_callback
+	state.window.cursor_callback = cursor_callback
 
 	state.instance = wgpu.CreateInstance(nil)
 	assert(state.instance != nil, "WGPU Failed to create a new instance")
@@ -63,8 +64,8 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 
 		queue := wgpu.DeviceGetQueue(device)
 
-		state.renderer = renderer.renderer_init(device, queue, width, height)
-		state.game_state = game.game_init(&state.renderer)
+		state.renderer = renderer.renderer_init(device, queue)
+		state.game_state = game.game_init(&state.renderer, &state.window)
 
 		platform.prepare_context(&state.window)
 	}
@@ -101,6 +102,9 @@ update :: proc(dt: f32) {
 
 	game.game_update(&state.game_state, dt)
 
+	cam_matrix := game.game_get_camera_matrix(&state.game_state)
+	renderer.render_camera_update(state.renderer.queue, &state.renderer.camera, cam_matrix)
+
 	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
 
@@ -109,27 +113,24 @@ update :: proc(dt: f32) {
 
 @(private = "file")
 resize :: proc(width, height: u32) {
+	if (width <= 0 || height <= 0) do return
+
 	context = state.ctx
 
 	state.config.width, state.config.height = platform.get_frame_size(&state.window)
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 
-	if state.renderer.camera.buffer != nil {
-		state.renderer.camera.data.aspect = f32(state.config.width) / f32(state.config.height)
-		mat := renderer.camera_build_matrix(&state.renderer.camera.data)
-		wgpu.QueueWriteBuffer(
-			state.renderer.queue,
-			state.renderer.camera.buffer,
-			0,
-			&mat,
-			size_of(mat),
-		)
-	}
+	game.game_update_camera_component(&state.game_state, state.config.width, state.config.height)
 }
 
 @(private = "file")
 key_callback :: proc(key: input.Key, down: bool) {
 	input.input_set_key_state(&state.game_state.input, key, down)
+}
+
+@(private = "file")
+cursor_callback :: proc(x, y: f32) {
+	input.input_set_mouse_position(&state.game_state.input, x, y)
 }
 
 @(private = "file")

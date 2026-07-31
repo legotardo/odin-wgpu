@@ -7,7 +7,7 @@ import "../renderer"
 
 game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 	items := make([dynamic]renderer.RenderItem, context.temp_allocator)
-	required_mask := ecs.ComponentMask{.Transform, .Render}
+	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & required_mask) == required_mask {
@@ -25,7 +25,37 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 	return items[:]
 }
 
-transform_matrix :: proc(t: ecs.Transform) -> linalg.Matrix4f32 {
+game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
+	mask := ecs.ComponentMask{.TransformComponent, .CameraComponent}
+
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask) == mask {
+			t := state.world.transforms[i]
+			c := state.world.cameras[i]
+
+			view := linalg.matrix4_look_at_f32(t.position, c.target, c.up)
+			proj := linalg.matrix4_perspective_f32(c.fovy, c.aspect, c.znear, c.zfar)
+
+			return proj * view
+		}
+	}
+
+	return linalg.MATRIX4F32_IDENTITY
+}
+
+game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
+	mask := ecs.ComponentMask{.CameraComponent}
+
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask) == mask {
+			c := &state.world.cameras[i]
+
+			c.aspect = f32(width) / f32(height)
+		}
+	}
+}
+
+transform_matrix :: proc(t: ecs.TransformComponent) -> linalg.Matrix4f32 {
 	m_pos := linalg.matrix4_translate_f32(t.position)
 	m_scale := linalg.matrix4_scale(t.scale)
 

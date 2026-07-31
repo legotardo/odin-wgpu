@@ -5,15 +5,11 @@ import "../input"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
+import "core:terminal"
 import "core:time"
 import "vendor:glfw"
 import "vendor:wgpu"
 import "vendor:wgpu/glfwglue"
-
-WindowResizeCall :: #type proc(width, height: u32)
-WindowKeyCall :: #type proc(key: input.Key, down: bool)
-WindowUpdate :: #type proc(dt: f32)
-WindowFinish :: #type proc()
 
 Window :: struct {
 	ctx:             runtime.Context,
@@ -22,6 +18,8 @@ Window :: struct {
 	handle:          glfw.WindowHandle,
 	resize_callback: WindowResizeCall,
 	key_callback:    WindowKeyCall,
+	cursor_callback: WindowCursorCall,
+	terminate:       bool,
 }
 
 create_window :: proc() -> Window {
@@ -41,6 +39,9 @@ create_window :: proc() -> Window {
 
 	glfw.SetFramebufferSizeCallback(handle, framebuffer_callback)
 	glfw.SetKeyCallback(handle, key_callback)
+	glfw.SetCursorPosCallback(handle, cursor_pos_callback)
+
+	glfw.SetInputMode(handle, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
 	return {width = 800, height = 600, handle = handle}
 }
@@ -51,7 +52,7 @@ prepare_context :: proc(window: ^Window) {
 }
 
 should_close :: proc(window: ^Window) -> bool {
-	return glfw.WindowShouldClose(window.handle) == true
+	return glfw.WindowShouldClose(window.handle) == true || window.terminate
 }
 
 pool_events :: proc(window: ^Window) {
@@ -114,6 +115,26 @@ error_callback :: proc "c" (code: c.int, description: cstring) {
 	fmt.printf("GLFW Error %v: %s\n", code, description)
 }
 
+@(private = "file")
+key_from_glfw :: proc(key: c.int) -> input.Key {
+	switch key {
+	case glfw.KEY_W:
+		return .W
+	case glfw.KEY_S:
+		return .S
+	case glfw.KEY_A:
+		return .A
+	case glfw.KEY_D:
+		return .D
+	case glfw.KEY_SPACE:
+		return .Space
+	case glfw.KEY_LEFT_SHIFT:
+		return .LeftShift
+	case:
+		return .Unkown
+	}
+}
+
 @(private)
 key_callback :: proc "c" (handle: glfw.WindowHandle, key, scancode, action, mods: c.int) {
 	ptr := cast(^Window)glfw.GetWindowUserPointer(handle)
@@ -125,8 +146,27 @@ key_callback :: proc "c" (handle: glfw.WindowHandle, key, scancode, action, mods
 	if ptr.resize_callback != nil {
 		context = ptr.ctx
 
-		key := input.Key.Unkown
+		if (key == glfw.KEY_ESCAPE) {
+			ptr.terminate = true
+		}
+
+		key := key_from_glfw(key)
 
 		ptr.key_callback(key, action == glfw.PRESS || action == glfw.REPEAT)
+	}
+}
+
+@(private)
+cursor_pos_callback :: proc "c" (handle: glfw.WindowHandle, xpos, ypos: f64) {
+	ptr := cast(^Window)glfw.GetWindowUserPointer(handle)
+
+	if ptr == nil {
+		return
+	}
+
+	if ptr.cursor_callback != nil {
+		context = ptr.ctx
+
+		ptr.cursor_callback(f32(xpos), f32(ypos))
 	}
 }
