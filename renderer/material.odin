@@ -30,6 +30,15 @@ material_create :: proc(
 	)
 
 	layouts := [1]wgpu.VertexBufferLayout{vertex_layout}
+	primiteves_extras: wgpu.PrimitiveStateExtras
+
+	if (r.use_wireframe) {
+		primiteves_extras = wgpu.PrimitiveStateExtras {
+			chain = {next = nil, sType = .PrimitiveStateExtras},
+			polygonMode = .Line,
+			conservative = false,
+		}
+	}
 
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		r.device,
@@ -38,7 +47,7 @@ material_create :: proc(
 			vertex = {
 				module = shader_module,
 				entryPoint = "vs_main",
-				bufferCount = 1,
+				bufferCount = len(layouts),
 				buffers = raw_data(layouts[:]),
 			},
 			fragment = &{
@@ -50,7 +59,10 @@ material_create :: proc(
 					writeMask = wgpu.ColorWriteMaskFlags_All,
 				},
 			},
-			primitive = {topology = .TriangleList},
+			primitive = {
+				topology = .TriangleList,
+				nextInChain = (^wgpu.ChainedStruct)(&primiteves_extras),
+			},
 			multisample = {count = 1, mask = 0xFFFFFFFF},
 		},
 	)

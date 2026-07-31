@@ -28,3 +28,5 @@ FirstPersonComponent :: struct {
 	sensitivity: f32,
 	speed:       f32,
 }
+
+ChunkComponent :: struct {}

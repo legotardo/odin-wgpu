@@ -1,5 +1,6 @@
 package game
 
+import "core:fmt"
 import "core:math/linalg"
 import "vendor:wgpu"
 
@@ -15,6 +16,7 @@ GameState :: struct {
 	renderer: ^renderer.Renderer,
 	input:    input.InputManager,
 	world:    ^ecs.World,
+	window:   ^platform.Window,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState {
@@ -67,13 +69,34 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState 
 		{mesh = string(quad_mesh), material = string(minimal_material)},
 	)
 
-	return {assets = assets, renderer = r, world = world, input = input}
+	return {assets = assets, renderer = r, world = world, input = input, window = window}
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
 	// fmt.printf("%f FPS\n", 1 / dt)
 
 	system_update_camera(state, dt)
+
+	if (input.is_key_just_pressed(&state.input, .P)) {
+		state.renderer.use_wireframe = !state.renderer.use_wireframe
+
+		assets_register_material(
+			&state.assets,
+			"minimal",
+			renderer.material_create(
+				state.renderer,
+				string(default_shader_src),
+				renderer.vertex_get_buffer_layout(),
+				// TODO: Maybe we can move this bind thing to another place
+				// because the camera.bind_group it's used in render_draw call
+				// it's anoying to have this data in different places
+				[]wgpu.BindGroupLayout{state.renderer.camera.bind_group_layout},
+			),
+		)
+	}
+	if (input.is_key_just_pressed(&state.input, .Escape)) {
+		state.window.terminate = true
+	}
 
 	input.input_update(&state.input)
 }

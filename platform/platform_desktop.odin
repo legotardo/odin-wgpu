@@ -5,7 +5,6 @@ import "../input"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
-import "core:terminal"
 import "core:time"
 import "vendor:glfw"
 import "vendor:wgpu"
@@ -126,10 +125,14 @@ key_from_glfw :: proc(key: c.int) -> input.Key {
 		return .A
 	case glfw.KEY_D:
 		return .D
+	case glfw.KEY_P:
+		return .P
 	case glfw.KEY_SPACE:
 		return .Space
 	case glfw.KEY_LEFT_SHIFT:
 		return .LeftShift
+	case glfw.KEY_ESCAPE:
+		return .Escape
 	case:
 		return .Unkown
 	}
@@ -146,9 +149,9 @@ key_callback :: proc "c" (handle: glfw.WindowHandle, key, scancode, action, mods
 	if ptr.resize_callback != nil {
 		context = ptr.ctx
 
-		if (key == glfw.KEY_ESCAPE) {
-			ptr.terminate = true
-		}
+		// if (key == glfw.KEY_ESCAPE) {
+		// 	ptr.terminate = true
+		// }
 
 		key := key_from_glfw(key)
 

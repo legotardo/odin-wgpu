@@ -36,7 +36,13 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 		assert(status == .Success, "Failed to request adapter")
 
 		state.adapter = adapter
-		wgpu.AdapterRequestDevice(adapter, nil, {callback = on_device})
+		features := [1]wgpu.FeatureName{.PolygonModeLine}
+
+		wgpu.AdapterRequestDevice(
+			adapter,
+			&{requiredFeatures = raw_data(features[:]), requiredFeatureCount = len(features)},
+			{callback = on_device},
+		)
 	}
 
 	on_device :: proc "c" (

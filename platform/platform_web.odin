@@ -5,10 +5,6 @@ import "base:runtime"
 import "core:sys/wasm/js"
 import "vendor:wgpu"
 
-WindowResizeCall :: #type proc(width, height: u32)
-WindowUpdate :: #type proc(dt: f32)
-WindowFinish :: #type proc()
-
 Window :: struct {
 	ctx:             runtime.Context,
 	width:           u32,

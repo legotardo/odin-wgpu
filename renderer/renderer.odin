@@ -3,9 +3,10 @@ package renderer
 import "vendor:wgpu"
 
 Renderer :: struct {
-	device: wgpu.Device,
-	queue:  wgpu.Queue,
-	camera: RenderCamera,
+	device:        wgpu.Device,
+	queue:         wgpu.Queue,
+	camera:        RenderCamera,
+	use_wireframe: bool,
 }
 
 RenderItem :: struct {
@@ -16,7 +17,7 @@ RenderItem :: struct {
 renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Renderer {
 	camera := render_camera_create(device)
 
-	return {camera = camera, device = device, queue = queue}
+	return {camera = camera, device = device, queue = queue, use_wireframe = false}
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
