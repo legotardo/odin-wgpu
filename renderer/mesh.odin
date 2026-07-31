@@ -1,5 +1,6 @@
 package renderer
 
+import "../logger"
 import "vendor:wgpu"
 
 Mesh :: struct {
@@ -9,17 +10,19 @@ Mesh :: struct {
 	index_count:   u32,
 }
 
-mesh_create :: proc(device: wgpu.Device, vertices: []Vertex, indices: []u16) -> Mesh {
+mesh_create :: proc(r: ^Renderer, vertices: []Vertex, indices: []u16) -> Mesh {
 	vertex_buffer := wgpu.DeviceCreateBufferWithDataSlice(
-		device,
+		r.device,
 		&{label = "mesh vertex buffer", usage = {.Vertex}},
 		vertices[:],
 	)
 	index_buffer := wgpu.DeviceCreateBufferWithDataSlice(
-		device,
+		r.device,
 		&{label = "index buffer", usage = {.Index}},
 		indices[:],
 	)
+
+	logger.info("[MESH] Mesh created")
 
 	return {
 		vertex_buffer = vertex_buffer,

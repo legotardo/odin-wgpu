@@ -1,5 +1,6 @@
 package renderer
 
+import "../logger"
 import "vendor:wgpu"
 
 Material :: struct {
@@ -8,19 +9,19 @@ Material :: struct {
 }
 
 material_create :: proc(
-	device: wgpu.Device,
+	r: ^Renderer,
 	shader_src: string,
 	vertex_layout: wgpu.VertexBufferLayout,
 	bind_group_layouts: []wgpu.BindGroupLayout,
 ) -> Material {
 	shader_module := wgpu.DeviceCreateShaderModule(
-		device,
+		r.device,
 		&{nextInChain = &wgpu.ShaderSourceWGSL{sType = .ShaderSourceWGSL, code = shader_src}},
 	)
 	defer wgpu.ShaderModuleRelease(shader_module)
 
 	pipeline_layout := wgpu.DeviceCreatePipelineLayout(
-		device,
+		r.device,
 		&{
 			bindGroupLayouts = raw_data(bind_group_layouts[:]),
 			bindGroupLayoutCount = len(bind_group_layouts),
@@ -31,7 +32,7 @@ material_create :: proc(
 	layouts := [1]wgpu.VertexBufferLayout{vertex_layout}
 
 	pipeline := wgpu.DeviceCreateRenderPipeline(
-		device,
+		r.device,
 		&{
 			layout = pipeline_layout,
 			vertex = {
@@ -53,6 +54,8 @@ material_create :: proc(
 			multisample = {count = 1, mask = 0xFFFFFFFF},
 		},
 	)
+
+	logger.info("[MATERIAL] Material created with shader")
 
 	return {pipeline = pipeline, pipeline_layout = pipeline_layout}
 }
