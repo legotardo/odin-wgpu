@@ -1,5 +1,6 @@
 package ecs
 
+import "../constants"
 import "core:math/linalg"
 
 TransformComponent :: struct {
@@ -29,4 +30,9 @@ FirstPersonComponent :: struct {
 	speed:       f32,
 }
 
-ChunkComponent :: struct {}
+Block :: distinct u8
+ChunkComponent :: struct {
+	blocks:       [constants.CHUNK_SIZE_CUBED]Block,
+	is_generated: bool,
+	is_dirty:     bool,
+}

@@ -72,6 +72,7 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 
 		state.renderer = renderer.renderer_init(device, queue)
 		state.game_state = game.game_init(&state.renderer, &state.window)
+		game.game_awake(&state.game_state)
 
 		platform.prepare_context(&state.window)
 	}

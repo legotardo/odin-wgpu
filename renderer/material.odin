@@ -61,7 +61,9 @@ material_create :: proc(
 			},
 			primitive = {
 				topology = .TriangleList,
+				frontFace = .CCW,
 				nextInChain = (^wgpu.ChainedStruct)(&primiteves_extras),
+				cullMode = r.use_wireframe ? .None : .Back,
 			},
 			multisample = {count = 1, mask = 0xFFFFFFFF},
 		},

@@ -7,6 +7,7 @@ ComponentType :: enum {
 	RenderComponent,
 	CameraComponent,
 	FirstPersonComponent,
+	ChunkComponent,
 }
 
 ComponentMask :: bit_set[ComponentType]
@@ -21,6 +22,7 @@ World :: struct {
 	transforms:         [MAX_ENTITIES]TransformComponent,
 	renders:            [MAX_ENTITIES]RenderComponent,
 	first_persons:      [MAX_ENTITIES]FirstPersonComponent,
+	chunks:             [MAX_ENTITIES]ChunkComponent,
 	cameras:            [1]CameraComponent,
 }
 
@@ -82,14 +84,20 @@ entity_add_render :: proc(w: ^World, e: Entity, r: RenderComponent) {
 	w.masks[idx] += {.RenderComponent}
 }
 
-entity_add_camera :: proc(w: ^World, e: Entity, r: CameraComponent) {
+entity_add_camera :: proc(w: ^World, e: Entity, c: CameraComponent) {
 	idx := entity_index(e)
-	w.cameras[idx] = r
+	w.cameras[idx] = c
 	w.masks[idx] += {.CameraComponent}
 }
 
-entity_add_first_person :: proc(w: ^World, e: Entity, r: FirstPersonComponent) {
+entity_add_first_person :: proc(w: ^World, e: Entity, f: FirstPersonComponent) {
 	idx := entity_index(e)
-	w.first_persons[idx] = r
+	w.first_persons[idx] = f
 	w.masks[idx] += {.FirstPersonComponent}
+}
+
+entity_add_chunk :: proc(w: ^World, e: Entity, c: ChunkComponent) {
+	idx := entity_index(e)
+	w.chunks[idx] = c
+	w.masks[idx] += {.ChunkComponent}
 }

@@ -10,17 +10,19 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
 
 	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & required_mask) == required_mask {
-			t := state.world.transforms[i]
-			r := state.world.renders[i]
+		if (state.world.masks[i] & required_mask) != required_mask do continue
 
-			mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
-			mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
-			m := transform_matrix(t)
+		t := state.world.transforms[i]
+		r := state.world.renders[i]
 
-			append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr})
-		}
+		mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
+		mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
+		m := transform_matrix(t)
+
+		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr})
 	}
+
+	// fmt.printf("Items to render = %d\n", len(items))
 
 	return items[:]
 }
