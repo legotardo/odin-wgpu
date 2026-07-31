@@ -4,11 +4,13 @@ import "core:fmt"
 import "vendor:wgpu"
 
 import "game"
+import "input"
 import "platform"
 import "renderer"
 
 wgpu_initialize :: proc(window: ^platform.Window) {
 	state.window.resize_callback = resize
+	state.window.key_callback = key_callback
 
 	state.instance = wgpu.CreateInstance(nil)
 	assert(state.instance != nil, "WGPU Failed to create a new instance")
@@ -53,7 +55,7 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 			device      = device,
 			usage       = {.RenderAttachment},
 			format      = .BGRA8Unorm,
-			presentMode = .Fifo,
+			presentMode = .Fifo, //Timing of display
 			alphaMode   = .Opaque,
 		}
 
@@ -97,8 +99,9 @@ update :: proc(dt: f32) {
 	view := wgpu.TextureCreateView(surface_texture.texture, nil)
 	defer wgpu.TextureViewRelease(view)
 
-	game_items_to_draw := game.game_get_render_items(&state.game_state)
+	game.game_update(&state.game_state, dt)
 
+	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
 
 	wgpu.SurfacePresent(state.surface)
@@ -123,6 +126,12 @@ resize :: proc(width, height: u32) {
 		)
 	}
 }
+
+@(private = "file")
+key_callback :: proc(key: input.Key, down: bool) {
+	input.input_set_key_state(&state.game_state.input, key, down)
+}
+
 @(private = "file")
 finish :: proc() {
 	context = state.ctx

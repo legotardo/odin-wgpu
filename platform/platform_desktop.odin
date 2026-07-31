@@ -1,6 +1,7 @@
 #+build !js
 package platform
 
+import "../input"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
@@ -10,6 +11,7 @@ import "vendor:wgpu"
 import "vendor:wgpu/glfwglue"
 
 WindowResizeCall :: #type proc(width, height: u32)
+WindowKeyCall :: #type proc(key: input.Key, down: bool)
 WindowUpdate :: #type proc(dt: f32)
 WindowFinish :: #type proc()
 
@@ -19,6 +21,7 @@ Window :: struct {
 	height:          u32,
 	handle:          glfw.WindowHandle,
 	resize_callback: WindowResizeCall,
+	key_callback:    WindowKeyCall,
 }
 
 create_window :: proc() -> Window {
@@ -37,6 +40,7 @@ create_window :: proc() -> Window {
 	assert(handle != nil, "Failed to create a GLFW Window")
 
 	glfw.SetFramebufferSizeCallback(handle, framebuffer_callback)
+	glfw.SetKeyCallback(handle, key_callback)
 
 	return {width = 800, height = 600, handle = handle}
 }
@@ -108,4 +112,21 @@ framebuffer_callback :: proc "c" (handle: glfw.WindowHandle, width, height: c.in
 error_callback :: proc "c" (code: c.int, description: cstring) {
 	context = runtime.default_context()
 	fmt.printf("GLFW Error %v: %s\n", code, description)
+}
+
+@(private)
+key_callback :: proc "c" (handle: glfw.WindowHandle, key, scancode, action, mods: c.int) {
+	ptr := cast(^Window)glfw.GetWindowUserPointer(handle)
+
+	if ptr == nil {
+		return
+	}
+
+	if ptr.resize_callback != nil {
+		context = ptr.ctx
+
+		key := input.Key.Unkown
+
+		ptr.key_callback(key, action == glfw.PRESS || action == glfw.REPEAT)
+	}
 }

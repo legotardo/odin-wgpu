@@ -1,5 +1,7 @@
 package game
 
+import "../ecs"
+import "../input"
 import "../renderer"
 import "vendor:wgpu"
 
@@ -8,50 +10,51 @@ default_shader_src := #load("../assets/shaders/minimal.wgsl")
 GameState :: struct {
 	assets:   Assets,
 	renderer: ^renderer.Renderer,
-	world:    World,
+	input:    input.InputManager,
+	world:    ^ecs.World,
 }
 
 game_init :: proc(r: ^renderer.Renderer) -> GameState {
 	assets := assets_init()
 
+	// assets
 	minimal_material := assets_register_material(
 		&assets,
 		"minimal",
 		renderer.material_create(
-			r,
-			string(default_shader_src),
-			renderer.vertex_get_buffer_layout(),
-			[]wgpu.BindGroupLayout{r.camera.bind_group_layout},
+		r,
+		string(default_shader_src),
+		renderer.vertex_get_buffer_layout(),
+		// TODO: Maybe we can move this bind thing to another place
+		// because the camera.bind_group it's used in render_draw call
+		// it's anoying to have this data in different places
+		[]wgpu.BindGroupLayout{r.camera.bind_group_layout},
 		),
 	)
 
 	vertices, indices := renderer.quad_geometry()
 	quad_mesh := assets_register_mesh(&assets, "quad", renderer.mesh_create(r, vertices, indices))
+	// assets
 
-	world := world_init()
+	world := ecs.world_init()
 
-	world_create_object(&world, quad_mesh, minimal_material, {0, 0, 0})
+	quad := ecs.entity_create(world)
+	ecs.entity_add_transform(world, quad, {})
+	ecs.entity_add_render(
+		world,
+		quad,
+		{mesh = string(quad_mesh), material = string(minimal_material)},
+	)
 
 	return {assets = assets, renderer = r, world = world}
 }
 
-game_update :: proc(state: ^GameState, dt: f32) {}
+game_update :: proc(state: ^GameState, dt: f32) {
+	// fmt.printf("%f FPS\n", 1 / dt)
+
+	input.input_update(&state.input)
+}
 
 game_destroy :: proc(state: ^GameState) {
 	assets_destroy(&state.assets)
-}
-
-game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
-	items := make([dynamic]renderer.RenderItem, context.temp_allocator)
-
-	for obj in state.world.objects {
-		if !obj.active do continue
-
-		mesh := assets_get_mesh(&state.assets, obj.mesh)
-		material := assets_get_material(&state.assets, obj.material)
-
-		append(&items, renderer.RenderItem{mesh = mesh, material = material})
-	}
-
-	return items[:]
 }
