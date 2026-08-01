@@ -61,10 +61,18 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		if chunk.is_generated && chunk.is_dirty && !chunk.is_meshing {
 			chunk.is_meshing = true
 
-			task_data := new(MeshTaskData)
+			task_data := new(ChunkTaskData)
 			task_data.chunk = chunk
 			task_data.chunk_pos = t.position
 			task_data.entity_index = i
+
+			cs := f32(constants.CHUNK_SIZE)
+			task_data.neighbors[0] = get_chunk_at(state.world, t.position + {-cs, 0  , 0})
+			task_data.neighbors[1] = get_chunk_at(state.world, t.position + {cs , 0  , 0})
+			task_data.neighbors[2] = get_chunk_at(state.world, t.position + {0  , -cs, 0})
+			task_data.neighbors[3] = get_chunk_at(state.world, t.position + {0  , cs , 0})
+			task_data.neighbors[4] = get_chunk_at(state.world, t.position + {0  , 0  , -cs})
+			task_data.neighbors[5] = get_chunk_at(state.world, t.position + {0  , 0  , cs})
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
 		}
@@ -73,7 +81,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 	for thread.pool_num_done(state.thread_pool) > 0 {
 		task, ok := thread.pool_pop_done(state.thread_pool)
 		if !ok do continue
-		data := cast(^MeshTaskData)task.data
+		data := cast(^ChunkTaskData)task.data
 
 		if len(data.vertices) > 0 {
 			mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
@@ -96,13 +104,13 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 }
 
 chunk_mesh_task :: proc(t: thread.Task) {
-	data := cast(^MeshTaskData)t.data
+	data := cast(^ChunkTaskData)t.data
 
-	data.vertices, data.indices = generate_chunk_mesh(data.chunk, data.chunk_pos)
+	data.vertices, data.indices = generate_chunk_mesh(data.chunk, data.chunk_pos, data.neighbors)
 }
 
 @(private = "file")
-generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, chunk_pos: linalg.Vector3f32) -> ([]renderer.Vertex, []u16) {
+generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, chunk_pos: linalg.Vector3f32, neighbors: [6]^ecs.ChunkComponent) -> ([]renderer.Vertex, []u16) {
 	vertices := make([dynamic]renderer.Vertex)
 	indices := make([dynamic]u16)
 
@@ -124,8 +132,8 @@ generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, chunk_pos: linalg.Vector
 			// Create the mask
 			for voxel_pos[axis_v] = 0; voxel_pos[axis_v] < constants.CHUNK_SIZE; voxel_pos[axis_v] += 1 {
 				for voxel_pos[axis_u] = 0; voxel_pos[axis_u] < constants.CHUNK_SIZE; voxel_pos[axis_u] += 1 {
-					block_current := chunk_get_block(chunk, voxel_pos[0], voxel_pos[1], voxel_pos[2])
-					block_neighbor := chunk_get_block(chunk, voxel_pos[0] + neighbor_dir[0], voxel_pos[1] + neighbor_dir[1], voxel_pos[2] + neighbor_dir[2])
+					block_current := chunk_get_block(chunk, voxel_pos[0], voxel_pos[1], voxel_pos[2], neighbors)
+					block_neighbor := chunk_get_block(chunk, voxel_pos[0] + neighbor_dir[0], voxel_pos[1] + neighbor_dir[1], voxel_pos[2] + neighbor_dir[2], neighbors)
 
 					if block_current != 0 && block_neighbor == 0 {
 						mask[mask_idx] = i16(block_current)
@@ -255,7 +263,31 @@ chunk_get_index :: proc(x, y, z: int) -> int {
 }
 
 @(private = "file")
-chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.Block {
+chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, neighbors: [6]^ecs.ChunkComponent) -> ecs.Block {
+	if x < 0 {
+		if neighbors[0] == nil do return 0
+		return chunk_get_block_local(neighbors[0], constants.CHUNK_SIZE - 1, y, z)
+	} else if x >= constants.CHUNK_SIZE {
+		if neighbors[1] == nil do return 0
+		return chunk_get_block_local(neighbors[1], 0, y, z)
+	} else if y < 0 {
+		if neighbors[2] == nil do return 0
+		return chunk_get_block_local(neighbors[2], x, constants.CHUNK_SIZE - 1, z)
+	} else if y >= constants.CHUNK_SIZE {
+		if neighbors[3] == nil do return 0
+		return chunk_get_block_local(neighbors[3], x, 0, z)
+	} else if z < 0 {
+		if neighbors[4] == nil do return 0
+		return chunk_get_block_local(neighbors[4], x, y, constants.CHUNK_SIZE - 1)
+	} else if z >= constants.CHUNK_SIZE {
+		if neighbors[5] == nil do return 0
+		return chunk_get_block_local(neighbors[5], x, y, 0)
+	}
+
+	return chunk_get_block_local(chunk, x, y, z)
+}
+
+chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.Block {
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -282,4 +314,19 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, block: ecs.Blo
 
 	idx := chunk_get_index(x, y, z)
 	chunk.blocks[idx] = block
+}
+
+@(private = "file")
+get_chunk_at :: proc(world: ^ecs.World, pos: linalg.Vector3f32) -> ^ecs.ChunkComponent {
+	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+
+	for i in 0..< len(world.entities) {
+		if (world.masks[i] & mask) != mask do continue
+
+		if world.transforms[i].position == pos {
+			return &world.chunks[i]
+		}
+	}
+	
+	return nil
 }
