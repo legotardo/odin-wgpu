@@ -45,7 +45,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 
 		if !chunk.is_generated || !chunk.is_dirty do continue
 
-		vertices, indices := generate_chunk_mesh(chunk)
+		vertices, indices := generate_chunk_mesh(chunk, t)
 
 		if len(vertices) > 0 {
 			mesh := renderer.mesh_create(state.renderer, vertices, indices)
@@ -53,7 +53,8 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 
 			ecs.entity_add_render(state.world, state.world.entities[i], {
 				mesh = string(mesh_handle),
-				material = "minimal"
+				material = "chunk",
+				ignore_instancing = true,
 			})
 		}
 
@@ -62,7 +63,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 }
 
 @(private = "file")
-generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent) -> ([]renderer.Vertex, []u16) {
+generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, transform: ^ecs.TransformComponent) -> ([]renderer.Vertex, []u16) {
 	vertices := make([dynamic]renderer.Vertex, context.temp_allocator)
 	indices := make([dynamic]u16, context.temp_allocator)
 
@@ -139,11 +140,45 @@ generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent) -> ([]renderer.Vertex, [
 							normal_id += 1
 						}
 
-						bottom_left := renderer.Vertex{position= {f32(quad_pos[0]), f32(quad_pos[1]), f32(quad_pos[2])}, material_id = mat_id, normal_id = normal_id}
-						bottom_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0]), f32(quad_pos[1] + delta_u[1]), f32(quad_pos[2] + delta_u[2])}, material_id = mat_id, normal_id = normal_id}
+						chunk_pos := transform.position
 
-						top_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0] + delta_v[0]), f32(quad_pos[1] + delta_u[1] + delta_v[1]), f32(quad_pos[2] + delta_u[2] + delta_v[2])}, material_id = mat_id, normal_id = normal_id}
-						top_left := renderer.Vertex{position= {f32(quad_pos[0] + delta_v[0]), f32(quad_pos[1] + delta_v[1]), f32(quad_pos[2] + delta_v[2])}, material_id = mat_id, normal_id = normal_id}
+						bottom_left := renderer.Vertex{
+							position = {
+								f32(quad_pos[0]) + chunk_pos.x,
+								f32(quad_pos[1]) + chunk_pos.y,
+								f32(quad_pos[2]) + chunk_pos.z,
+							},
+							material_id = mat_id,
+							normal_id = normal_id,
+						}
+						bottom_right := renderer.Vertex{
+							position = {
+								f32(quad_pos[0] + delta_u[0]) + chunk_pos.x,
+								f32(quad_pos[1] + delta_u[1]) + chunk_pos.y,
+								f32(quad_pos[2] + delta_u[2]) + chunk_pos.z,
+							},
+							material_id = mat_id,
+							normal_id = normal_id,
+						}
+
+						top_right := renderer.Vertex{
+							position = {
+								f32(quad_pos[0] + delta_u[0] + delta_v[0]) + chunk_pos.x,
+								f32(quad_pos[1] + delta_u[1] + delta_v[1]) + chunk_pos.y,
+								f32(quad_pos[2] + delta_u[2] + delta_v[2]) + chunk_pos.z,
+							},
+							material_id = mat_id,
+							normal_id = normal_id,
+						}
+						top_left := renderer.Vertex{
+							position = {
+								f32(quad_pos[0] + delta_v[0]) + chunk_pos.x,
+								f32(quad_pos[1] + delta_v[1]) + chunk_pos.y,
+								f32(quad_pos[2] + delta_v[2]) + chunk_pos.z,
+							},
+							material_id = mat_id,
+							normal_id = normal_id,
+						}
 
 						append(&vertices, bottom_left, bottom_right, top_right, top_left)
 						idx := u16(len(vertices) - 4)

@@ -151,3 +151,24 @@ renderer_update_instance_buffer :: proc(
 ) {
 		wgpu.QueueWriteBuffer(r.queue, r.instance_buffer, 0, raw_data(transforms), size_of(linalg.Matrix4f32) * len(transforms))
 }
+
+renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f32 {
+	count := 0
+    for item in items {
+        if item.should_use_instance {
+            count += 1
+        }
+    }
+
+    transforms := make([]linalg.Matrix4f32, count, context.temp_allocator)
+
+    for item, i in items {
+        if !item.should_use_instance {
+            continue
+        }
+        
+		transforms[i] = item.transform
+    }
+
+	return transforms
+}

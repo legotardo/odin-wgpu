@@ -25,6 +25,7 @@ RenderItem :: struct {
 	mesh:     ^Mesh,
 	material: ^Material,
 	transform: linalg.Matrix4f32,
+	should_use_instance: bool
 }
 
 renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.SurfaceConfiguration) -> Renderer {
@@ -115,11 +116,7 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
-	transforms := make([]linalg.Matrix4f32, len(items), context.temp_allocator)
-	for item, i in items {
-		transforms[i] = item.transform
-	}
-
+	transforms := renderer_get_instancing_items(items)
 	renderer_update_instance_buffer(r, transforms)
 
 	encoder := wgpu.DeviceCreateCommandEncoder(r.device, nil)

@@ -1,6 +1,5 @@
 package game
 
-import "core:fmt"
 import "core:math/linalg"
 import "vendor:wgpu"
 
@@ -9,7 +8,8 @@ import "../input"
 import "../platform"
 import "../renderer"
 
-default_shader_src := #load("../assets/shaders/minimal.wgsl")
+default_shader_src := #load("../assets/shaders/default.wgsl")
+chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
 
 GameState :: struct {
 	assets:   Assets,
@@ -39,12 +39,21 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState 
 
 game_awake :: proc(state: ^GameState) {
 	// assets
-	minimal_material := assets_register_material(
+	default_material := assets_register_material(
 		&state.assets,
-		"minimal",
+		"default",
 		renderer.material_create(
 			state.renderer,
 			string(default_shader_src),
+			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+		),
+	)
+	chunk_material := assets_register_material(
+		&state.assets,
+		"chunk",
+		renderer.material_create(
+			state.renderer,
+			string(chunk_shader_src),
 			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
 		),
 	)
@@ -101,7 +110,7 @@ game_awake :: proc(state: ^GameState) {
 	ecs.entity_add_render(
 		state.world,
 		light,
-		{mesh = string(quad_mesh), material = string(minimal_material)},
+		{mesh = string(quad_mesh), material = string(default_material)},
 	)
 
 	light2 := ecs.entity_create(state.world)
@@ -119,16 +128,16 @@ game_awake :: proc(state: ^GameState) {
 	ecs.entity_add_render(
 		state.world,
 		light,
-		{mesh = string(quad_mesh), material = string(minimal_material)},
+		{mesh = string(quad_mesh), material = string(default_material)},
 	)
 	ecs.entity_add_render(
 		state.world,
 		light2,
-		{mesh = string(quad_mesh), material = string(minimal_material)},
+		{mesh = string(quad_mesh), material = string(default_material)},
 	)
 
 	chunk := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, chunk, { position = { -1, -1, -1 }, scale = { 1, 1, 1 } })
+	ecs.entity_add_transform(state.world, chunk, { position = { 0, 0, 0 }, scale = { 1, 1, 1 } })
 	ecs.entity_add_chunk(state.world, chunk, {})
 }
 

@@ -13,6 +13,7 @@ TransformComponent :: struct {
 RenderComponent :: struct {
 	mesh:     string,
 	material: string,
+	ignore_instancing: bool,
 }
 
 CameraComponent :: struct {

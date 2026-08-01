@@ -25,14 +25,9 @@ struct LightBuffer {
     lights: array<Light>,
 }
 
-struct InstanceBuffer {
-    models: array<mat4x4<f32>>,
-}
-
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(0) @binding(1) var<storage, read> palette: PaletteUniform;
 @group(0) @binding(2) var<storage, read> light_data: LightBuffer;
-@group(0) @binding(3) var<storage, read> instance_data: InstanceBuffer;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -49,9 +44,8 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(in: VertexInput, @builtin(instance_index) instance_idx: u32) -> VertexOutput {
-    let model = instance_data.models[instance_idx];
-    let world_pos = model * vec4<f32>(in.position, 1.0);
+fn vs_main(in: VertexInput) -> VertexOutput {
+    let world_pos = vec4<f32>(in.position, 1.0);
 
     var out: VertexOutput;
 
