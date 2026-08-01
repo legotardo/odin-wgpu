@@ -45,7 +45,6 @@ game_awake :: proc(state: ^GameState) {
 		renderer.material_create(
 			state.renderer,
 			string(default_shader_src),
-			renderer.vertex_get_buffer_layout(),
 			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
 		),
 	)
@@ -88,7 +87,7 @@ game_awake :: proc(state: ^GameState) {
 	// )
 
 	light := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, light, { position = {5, 5, 5}})
+	ecs.entity_add_transform(state.world, light, {position = {5, 5, 5}, scale = {1, 1, 1}, rotation = linalg.QUATERNIONF32_IDENTITY })
 	ecs.entity_add_light(
 		state.world,
 		light,
@@ -99,9 +98,37 @@ game_awake :: proc(state: ^GameState) {
 			range = 20,
 		},
 	)
+	ecs.entity_add_render(
+		state.world,
+		light,
+		{mesh = string(quad_mesh), material = string(minimal_material)},
+	)
+
+	light2 := ecs.entity_create(state.world)
+	ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {1, 1, 1}, rotation = linalg.QUATERNIONF32_IDENTITY })
+	ecs.entity_add_light(
+		state.world,
+		light2,
+		{
+			color = {1, 0, 1},
+			intensity = 1,
+			light_type = .Point,
+			range = 20,
+		},
+	)
+	ecs.entity_add_render(
+		state.world,
+		light,
+		{mesh = string(quad_mesh), material = string(minimal_material)},
+	)
+	ecs.entity_add_render(
+		state.world,
+		light2,
+		{mesh = string(quad_mesh), material = string(minimal_material)},
+	)
 
 	chunk := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, chunk, {})
+	ecs.entity_add_transform(state.world, chunk, { position = { -1, -1, -1 }, scale = { 1, 1, 1 } })
 	ecs.entity_add_chunk(state.world, chunk, {})
 }
 
@@ -123,7 +150,6 @@ game_update :: proc(state: ^GameState, dt: f32) {
 			renderer.material_create(
 				state.renderer,
 				string(default_shader_src),
-				renderer.vertex_get_buffer_layout(),
 				[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
 			),
 		)

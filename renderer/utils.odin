@@ -2,6 +2,7 @@ package renderer
 
 import "core:math/linalg"
 import "vendor:wgpu"
+import "../constants"
 
 // // // CAMERA
 renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
@@ -129,3 +130,24 @@ renderer_update_light_buffer :: proc(
 	)
 }
 // // // LIGHT
+
+// // // INSTANCE
+renderer_create_instance_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
+	buffer := wgpu.DeviceCreateBuffer(
+		device,
+		&{
+			label = "instance buffer",
+			usage = {.Storage, .CopyDst},
+			size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
+		},
+	)
+
+	return buffer
+}
+
+renderer_update_instance_buffer :: proc(
+	r: ^Renderer,
+	transforms: []linalg.Matrix4f32,
+) {
+		wgpu.QueueWriteBuffer(r.queue, r.instance_buffer, 0, raw_data(transforms), size_of(linalg.Matrix4f32) * len(transforms))
+}

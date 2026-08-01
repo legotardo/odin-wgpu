@@ -1,6 +1,7 @@
 package renderer
 
 import "../logger"
+import "../renderer"
 import "vendor:wgpu"
 
 Material :: struct {
@@ -11,7 +12,6 @@ Material :: struct {
 material_create :: proc(
 	r: ^Renderer,
 	shader_src: string,
-	vertex_layout: wgpu.VertexBufferLayout,
 	bind_group_layouts: []wgpu.BindGroupLayout,
 ) -> Material {
 	shader_module := wgpu.DeviceCreateShaderModule(
@@ -28,6 +28,8 @@ material_create :: proc(
 			immediateSize = 0,
 		},
 	)
+
+	vertex_layout := vertex_get_buffer_layout()
 
 	layouts := [1]wgpu.VertexBufferLayout{vertex_layout}
 	primiteves_extras: wgpu.PrimitiveStateExtras

@@ -19,7 +19,7 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
 		m := transform_matrix(t)
 
-		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr})
+		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr, transform = m})
 	}
 
 	// fmt.printf("Items to render = %d\n", len(items))
@@ -57,9 +57,8 @@ game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 	}
 }
 
-transform_matrix :: proc(t: ecs.TransformComponent) -> linalg.Matrix4f32 {
-	m_pos := linalg.matrix4_translate_f32(t.position)
-	m_scale := linalg.matrix4_scale(t.scale)
+transform_matrix :: proc(t: ecs.TransformComponent) -> matrix[4, 4]f32 {
+	model := linalg.matrix4_from_trs_f32(t.position, t.rotation, t.scale)
 
-	return m_pos * m_scale
+	return model
 }

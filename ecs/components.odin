@@ -6,7 +6,7 @@ import "core:math/linalg"
 
 TransformComponent :: struct {
 	position: linalg.Vector3f32,
-	rotation: linalg.Vector3f32,
+	rotation: linalg.Quaternionf32,
 	scale:    linalg.Vector3f32,
 }
 

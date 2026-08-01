@@ -3,6 +3,8 @@ package renderer
 import "vendor:wgpu"
 import "core:math/linalg"
 
+import "../constants"
+
 Renderer :: struct {
 	device:        wgpu.Device,
 	queue:         wgpu.Queue,
@@ -14,6 +16,7 @@ Renderer :: struct {
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
 	light_buffer: wgpu.Buffer,
+	instance_buffer: wgpu.Buffer,
 
 	depth_texture_view: wgpu.TextureView,
 }
@@ -21,6 +24,7 @@ Renderer :: struct {
 RenderItem :: struct {
 	mesh:     ^Mesh,
 	material: ^Material,
+	transform: linalg.Matrix4f32,
 }
 
 renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.SurfaceConfiguration) -> Renderer {
@@ -28,8 +32,9 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 	palette_buffer := renderer_create_palette_buffer(device)
 	light_buffer := renderer_create_light_buffer(device)
 	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
+	instance_buffer := renderer_create_instance_buffer(device)
 
-	layout_entries := [3]wgpu.BindGroupLayoutEntry {
+	layout_entries := [4]wgpu.BindGroupLayoutEntry {
 		{
 			binding = 0,
 			visibility = {.Vertex},
@@ -57,6 +62,15 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 				minBindingSize = size_of(u32) * 4 + size_of(LightData) * 1024,
 			},
 		},
+		{
+			binding = 3,
+			visibility = {.Vertex},
+			buffer = {
+				type = .ReadOnlyStorage,
+				hasDynamicOffset = false,
+				minBindingSize = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
+			},
+		},
 	}
 
 
@@ -69,10 +83,11 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		},
 	)
 
-	group_entries := [3]wgpu.BindGroupEntry {
+	group_entries := [4]wgpu.BindGroupEntry {
 		{binding = 0, buffer = camera_buffer, size = size_of(linalg.Matrix4f32)},
 		{binding = 1, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
 		{binding = 2, buffer = light_buffer, size = size_of(u32) * 4 + size_of(LightData) * 1024},
+		{binding = 3, buffer = instance_buffer, size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},
 	}
 
 	global_bind_group := wgpu.DeviceCreateBindGroup(
@@ -95,10 +110,18 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		palette_buffer = palette_buffer,
 		depth_texture_view = depth_texture_view,
 		light_buffer = light_buffer,
+		instance_buffer = instance_buffer,
 	}
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
+	transforms := make([]linalg.Matrix4f32, len(items), context.temp_allocator)
+	for item, i in items {
+		transforms[i] = item.transform
+	}
+
+	renderer_update_instance_buffer(r, transforms)
+
 	encoder := wgpu.DeviceCreateCommandEncoder(r.device, nil)
 	defer wgpu.CommandEncoderRelease(encoder)
 
@@ -125,7 +148,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 
 	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.global_bind_group)
 
-	for item in items {
+	for item, i in items {
 		wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, item.material.pipeline)
 		wgpu.RenderPassEncoderSetVertexBuffer(
 			render_pass_encoder,
@@ -147,7 +170,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 			instanceCount = 1,
 			firstIndex = 0,
 			baseVertex = 0,
-			firstInstance = 0,
+			firstInstance = u32(i),
 		)
 	}
 
@@ -167,6 +190,8 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.BufferRelease(r.camera_buffer)
 	wgpu.BufferRelease(r.palette_buffer)
+	wgpu.BufferRelease(r.light_buffer)
+	wgpu.BufferRelease(r.instance_buffer)
 
 	wgpu.TextureViewRelease(r.depth_texture_view)
 
