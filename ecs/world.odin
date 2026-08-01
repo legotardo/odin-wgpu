@@ -1,6 +1,6 @@
 package ecs
 
-MAX_ENTITIES :: 1000
+MAX_ENTITIES :: 100000
 
 ComponentType :: enum {
 	TransformComponent,

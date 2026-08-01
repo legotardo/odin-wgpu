@@ -329,8 +329,20 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.B
 		return 0
 	}
 
+	if chunk.bits_per_block == 0 {
+		return chunk.palette[0]
+	}
+
 	idx := chunk_get_index(x, y, z)
-	return chunk.blocks[idx]
+
+	blocks_per_u64 := 64 / int(chunk.bits_per_block)
+	data_idx := idx / blocks_per_u64
+	bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
+
+	mask := (u64(1) << uint(chunk.bits_per_block)) - 1
+	palette_idx := (chunk.packed_blocks[data_idx] >> bit_offset) & mask
+
+	return chunk.palette[palette_idx]
 }
 
 @(private = "file")
@@ -344,8 +356,81 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, block: ecs.Blo
 		return
 	}
 
-	idx := chunk_get_index(x, y, z)
-	chunk.blocks[idx] = block
+	palette_idx := -1
+	for p, i in chunk.palette {
+		if p == block {
+			palette_idx = i
+			break
+		}
+	}
+
+	if palette_idx == -1 {
+		append(&chunk.palette, block)
+		palette_idx = len(chunk.palette) - 1
+
+		chunk_repack(chunk)
+	}
+
+	if chunk.bits_per_block > 0 {
+		idx := chunk_get_index(x, y, z)
+		blocks_per_u64 := 64 / int(chunk.bits_per_block)
+		data_idx := idx / blocks_per_u64
+		bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
+
+		mask := (u64(1) << uint(chunk.bits_per_block)) - 1
+
+		chunk.packed_blocks[data_idx] &= ~(mask << bit_offset)
+		chunk.packed_blocks[data_idx] |= (u64(palette_idx) & mask) << bit_offset
+	}
+}
+
+@(private = "file")
+chunk_repack :: proc(chunk: ^ecs.ChunkComponent) {
+	new_bits := get_required_bits(len(chunk.palette))
+
+	if new_bits == chunk.bits_per_block do return
+
+	old_bits := chunk.bits_per_block
+	old_data := chunk.packed_blocks
+
+	if new_bits > 0 {
+		blocks_per_u64 := 64 / int(new_bits)
+		total_blocks := constants.CHUNK_SIZE_CUBED
+		data_len := (total_blocks + blocks_per_u64 - 1) / blocks_per_u64
+
+		chunk.packed_blocks = make([]u64, data_len)
+
+		if len(old_data) > 0 {
+			old_blocks_per_u64 := 64 / int(old_bits)
+			old_mask := (u64(1) << uint(old_bits)) - 1
+			new_mask := (u64(1) << uint(new_bits)) - 1
+
+			for i in 0..<total_blocks {
+				old_data_idx := i / old_blocks_per_u64
+				old_bit_offset := uint(i % old_blocks_per_u64) * uint(old_bits)
+				palette_idx := (old_data[old_data_idx] >> old_bit_offset) & old_mask
+
+				new_data_idx := i / blocks_per_u64
+				new_bit_offset := uint(i % blocks_per_u64) * uint(new_bits)
+				
+				chunk.packed_blocks[new_data_idx] |= (palette_idx & new_mask) << new_bit_offset
+			}
+
+			delete(old_data)
+		}
+	}
+
+	chunk.bits_per_block = new_bits
+}
+
+@(private = "file")
+get_required_bits :: proc(palette_size: int) -> u8 {
+	if palette_size <= 1 do return 0
+	if palette_size <= 2 do return 1
+	if palette_size <= 4 do return 2
+	if palette_size <= 16 do return 4
+	if palette_size <= 256 do return 8
+	return 16
 }
 
 @(private = "file")

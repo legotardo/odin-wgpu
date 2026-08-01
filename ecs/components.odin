@@ -32,9 +32,12 @@ FirstPersonComponent :: struct {
 	speed:       f32,
 }
 
-Block :: distinct u8
+Block :: distinct u64
 ChunkComponent :: struct {
-	blocks:       [constants.CHUNK_SIZE_CUBED]Block,
+	palette: [dynamic]Block,
+	packed_blocks: []u64,
+	bits_per_block: u8,
+
 	current_lod:  int,
 	is_generated: bool,
 	is_dirty:     bool,
