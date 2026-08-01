@@ -5,7 +5,8 @@ import "vendor:wgpu"
 
 Vertex :: struct {
 	position: linalg.Vector3f32,
-	material_id: u8
+	material_id: u8,
+	normal_id: u8,
 	// color:    linalg.Vector3f32,
 }
 
@@ -36,15 +37,20 @@ quad_geometry :: proc() -> ([]Vertex, []u16) {
 }
 
 vertex_get_buffer_layout :: proc() -> wgpu.VertexBufferLayout {
-	@(static) attributes := [2]wgpu.VertexAttribute {
+	@(static) attributes := [3]wgpu.VertexAttribute {
 		{
-			offset         = 0, //
+			offset         = u64(offset_of(Vertex, position)), //
 			shaderLocation = 0, //
 			format         = .Float32x3,
 		},
 		{
-			offset         = u64(size_of([3]f32)), //
+			offset         = u64(offset_of(Vertex, material_id)), //
 			shaderLocation = 1, //
+			format         = .Uint8,
+		},
+		{
+			offset         = u64(offset_of(Vertex, normal_id)), //
+			shaderLocation = 2, //
 			format         = .Uint8,
 		},
 		// {

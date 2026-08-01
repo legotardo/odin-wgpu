@@ -1,7 +1,5 @@
 package renderer
 
-import "core:math"
-import "core:fmt"
 import "core:math/linalg"
 import "vendor:wgpu"
 

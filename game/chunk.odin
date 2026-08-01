@@ -134,11 +134,16 @@ generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent) -> ([]renderer.Vertex, [
 
 						mat_id := u8(abs(current_mask))
 
-						bottom_left := renderer.Vertex{position= {f32(quad_pos[0]), f32(quad_pos[1]), f32(quad_pos[2])}, material_id = mat_id}
-						bottom_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0]), f32(quad_pos[1] + delta_u[1]), f32(quad_pos[2] + delta_u[2])}, material_id = mat_id}
+						normal_id := u8(axis * 2)
+						if current_mask < 0 {
+							normal_id += 1
+						}
 
-						top_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0] + delta_v[0]), f32(quad_pos[1] + delta_u[1] + delta_v[1]), f32(quad_pos[2] + delta_u[2] + delta_v[2])}, material_id = mat_id}
-						top_left := renderer.Vertex{position= {f32(quad_pos[0] + delta_v[0]), f32(quad_pos[1] + delta_v[1]), f32(quad_pos[2] + delta_v[2])}, material_id = mat_id}
+						bottom_left := renderer.Vertex{position= {f32(quad_pos[0]), f32(quad_pos[1]), f32(quad_pos[2])}, material_id = mat_id, normal_id = normal_id}
+						bottom_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0]), f32(quad_pos[1] + delta_u[1]), f32(quad_pos[2] + delta_u[2])}, material_id = mat_id, normal_id = normal_id}
+
+						top_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0] + delta_v[0]), f32(quad_pos[1] + delta_u[1] + delta_v[1]), f32(quad_pos[2] + delta_u[2] + delta_v[2])}, material_id = mat_id, normal_id = normal_id}
+						top_left := renderer.Vertex{position= {f32(quad_pos[0] + delta_v[0]), f32(quad_pos[1] + delta_v[1]), f32(quad_pos[2] + delta_v[2])}, material_id = mat_id, normal_id = normal_id}
 
 						append(&vertices, bottom_left, bottom_right, top_right, top_left)
 						idx := u16(len(vertices) - 4)

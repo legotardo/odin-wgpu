@@ -39,7 +39,7 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		},
 		{
 			binding = 1,
-			visibility = {.Vertex},
+			visibility = {.Fragment},
 			buffer = {
 				type = .ReadOnlyStorage,
 				hasDynamicOffset = false,
