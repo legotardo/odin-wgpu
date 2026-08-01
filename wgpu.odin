@@ -36,7 +36,7 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 		assert(status == .Success, "Failed to request adapter")
 
 		state.adapter = adapter
-		features := [1]wgpu.FeatureName{.PolygonModeLine}
+		features := [2]wgpu.FeatureName{.PolygonModeLine, .VertexWritableStorage}
 
 		wgpu.AdapterRequestDevice(
 			adapter,
@@ -74,6 +74,8 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 		state.game_state = game.game_init(&state.renderer, &state.window)
 		game.game_awake(&state.game_state)
 
+		renderer.renderer_update_palette_buffer(&state.renderer, &state.game_state.palette.colors)
+
 		platform.prepare_context(&state.window)
 	}
 
@@ -110,7 +112,7 @@ update :: proc(dt: f32) {
 	game.game_update(&state.game_state, dt)
 
 	cam_matrix := game.game_get_camera_matrix(&state.game_state)
-	renderer.render_camera_update(state.renderer.queue, &state.renderer.camera, cam_matrix)
+	renderer.renderer_update_camera_buffer(&state.renderer, cam_matrix)
 
 	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)

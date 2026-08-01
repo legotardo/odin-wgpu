@@ -1,12 +1,18 @@
 package renderer
 
 import "vendor:wgpu"
+import "core:math/linalg"
 
 Renderer :: struct {
 	device:        wgpu.Device,
 	queue:         wgpu.Queue,
-	camera:        RenderCamera,
 	use_wireframe: bool,
+
+	global_bind_group:   wgpu.BindGroup,
+	global_layout_group: wgpu.BindGroupLayout,
+
+	palette_buffer: wgpu.Buffer,
+	camera_buffer:  wgpu.Buffer,
 }
 
 RenderItem :: struct {
@@ -15,9 +21,64 @@ RenderItem :: struct {
 }
 
 renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Renderer {
-	camera := render_camera_create(device)
+	camera_buffer := renderer_create_camera_buffer(device)
+	palette_buffer := renderer_create_palette_buffer(device)
 
-	return {camera = camera, device = device, queue = queue, use_wireframe = false}
+	layout_entries := [2]wgpu.BindGroupLayoutEntry {
+		{
+			binding = 0,
+			visibility = {.Vertex},
+			buffer = {
+				type = .Uniform,
+				hasDynamicOffset = false,
+				minBindingSize = size_of(linalg.Matrix4f32),
+			},
+		},
+		{
+			binding = 1,
+			visibility = {.Vertex},
+			buffer = {
+				type = .ReadOnlyStorage,
+				hasDynamicOffset = false,
+				minBindingSize = size_of(linalg.Vector4f32) * 256,
+			},
+		},
+	}
+
+
+	global_layout_group := wgpu.DeviceCreateBindGroupLayout(
+		device,
+		&{
+			entries = raw_data(layout_entries[:]),
+			entryCount = len(layout_entries),
+			label = "global bind group layout",
+		},
+	)
+
+	group_entries := [2]wgpu.BindGroupEntry {
+		{binding = 0, buffer = camera_buffer, size = size_of(linalg.Matrix4f32)},
+		{binding = 1, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
+	}
+
+	global_bind_group := wgpu.DeviceCreateBindGroup(
+		device,
+		&{
+			layout = global_layout_group,
+			entries = raw_data(group_entries[:]),
+			entryCount = len(group_entries),
+			label = "global bind group",
+		},
+	)
+
+	return {
+		device = device,
+		queue = queue,
+		use_wireframe = false,
+		global_bind_group = global_bind_group,
+		global_layout_group = global_layout_group,
+		camera_buffer = camera_buffer,
+		palette_buffer = palette_buffer,
+	}
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
@@ -38,7 +99,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 		},
 	)
 
-	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.camera.bind_group)
+	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.global_bind_group)
 
 	for item in items {
 		wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, item.material.pipeline)
@@ -76,7 +137,11 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 }
 
 renderer_destroy :: proc(r: ^Renderer) {
-	render_camera_destroy(&r.camera)
+	wgpu.BufferRelease(r.camera_buffer)
+	wgpu.BufferRelease(r.palette_buffer)
+
+	wgpu.BindGroupRelease(r.global_bind_group)
+	wgpu.BindGroupLayoutRelease(r.global_layout_group)
 
 	wgpu.DeviceRelease(r.device)
 	wgpu.QueueRelease(r.queue)

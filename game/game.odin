@@ -17,16 +17,24 @@ GameState :: struct {
 	input:    input.InputManager,
 	world:    ^ecs.World,
 	window:   ^platform.Window,
+	palette: Palette,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState {
 	assets := assets_init()
 	input := input.input_init()
-
 	world := ecs.world_init()
+	palette := palette_init_default()
 
 
-	return {assets = assets, renderer = r, world = world, input = input, window = window}
+	return {
+		assets = assets,
+		renderer = r,
+		world = world,
+		input = input,
+		window = window,
+		palette = palette
+	}
 }
 
 game_awake :: proc(state: ^GameState) {
@@ -35,13 +43,10 @@ game_awake :: proc(state: ^GameState) {
 		&state.assets,
 		"minimal",
 		renderer.material_create(
-		state.renderer,
-		string(default_shader_src),
-		renderer.vertex_get_buffer_layout(),
-		// TODO: Maybe we can move this bind thing to another place
-		// because the camera.bind_group it's used in render_draw call
-		// it's anoying to have this data in different places
-		[]wgpu.BindGroupLayout{state.renderer.camera.bind_group_layout},
+			state.renderer,
+			string(default_shader_src),
+			renderer.vertex_get_buffer_layout(),
+			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
 		),
 	)
 
@@ -74,13 +79,13 @@ game_awake :: proc(state: ^GameState) {
 		},
 	)
 
-	quad := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, quad, {})
-	ecs.entity_add_render(
-		state.world,
-		quad,
-		{mesh = string(quad_mesh), material = string(minimal_material)},
-	)
+	// quad := ecs.entity_create(state.world)
+	// ecs.entity_add_transform(state.world, quad, {})
+	// ecs.entity_add_render(
+	// 	state.world,
+	// 	quad,
+	// 	{mesh = string(quad_mesh), material = string(minimal_material)},
+	// )
 
 	chunk := ecs.entity_create(state.world)
 	ecs.entity_add_transform(state.world, chunk, {})
@@ -105,7 +110,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 				state.renderer,
 				string(default_shader_src),
 				renderer.vertex_get_buffer_layout(),
-				[]wgpu.BindGroupLayout{state.renderer.camera.bind_group_layout},
+				[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
 			),
 		)
 	}

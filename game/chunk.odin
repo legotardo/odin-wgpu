@@ -21,7 +21,7 @@ system_generate_chunk :: proc(state: ^GameState) {
 					if y == 0 {
 						chunk_set_block(chunk, x, y, z, 1)
 					} else if y < 3 && (x % 4 == 0 || z % 5 == 0) {
-						chunk_set_block(chunk, x, y, z, 1)
+						chunk_set_block(chunk, x, y, z, 2)
 					} else {
 						chunk_set_block(chunk, x, y, z, 0)
 					}
@@ -134,11 +134,11 @@ generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent) -> ([]renderer.Vertex, [
 
 						mat_id := u8(abs(current_mask))
 
-						bottom_left := renderer.Vertex{position= {f32(quad_pos[0]), f32(quad_pos[1]), f32(quad_pos[2])}}
-						bottom_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0]), f32(quad_pos[1] + delta_u[1]), f32(quad_pos[2] + delta_u[2])}}
+						bottom_left := renderer.Vertex{position= {f32(quad_pos[0]), f32(quad_pos[1]), f32(quad_pos[2])}, material_id = mat_id}
+						bottom_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0]), f32(quad_pos[1] + delta_u[1]), f32(quad_pos[2] + delta_u[2])}, material_id = mat_id}
 
-						top_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0] + delta_v[0]), f32(quad_pos[1] + delta_u[1] + delta_v[1]), f32(quad_pos[2] + delta_u[2] + delta_v[2])}}
-						top_left := renderer.Vertex{position= {f32(quad_pos[0] + delta_v[0]), f32(quad_pos[1] + delta_v[1]), f32(quad_pos[2] + delta_v[2])}}
+						top_right := renderer.Vertex{position= {f32(quad_pos[0] + delta_u[0] + delta_v[0]), f32(quad_pos[1] + delta_u[1] + delta_v[1]), f32(quad_pos[2] + delta_u[2] + delta_v[2])}, material_id = mat_id}
+						top_left := renderer.Vertex{position= {f32(quad_pos[0] + delta_v[0]), f32(quad_pos[1] + delta_v[1]), f32(quad_pos[2] + delta_v[2])}, material_id = mat_id}
 
 						append(&vertices, bottom_left, bottom_right, top_right, top_left)
 						idx := u16(len(vertices) - 4)
