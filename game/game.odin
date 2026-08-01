@@ -144,10 +144,8 @@ game_awake :: proc(state: ^GameState) {
 		light2,
 		{mesh = string(quad_mesh), material = string(default_material)},
 	)
-
-	chunk := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, chunk, { position = { 0, 0, 0 }, scale = { 1, 1, 1 } })
-	ecs.entity_add_chunk(state.world, chunk, {})
+	
+	spawn_world_chunks(state)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {

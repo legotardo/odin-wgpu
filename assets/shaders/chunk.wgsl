@@ -74,7 +74,7 @@ fn calculate_normal(normal_id: u32) -> vec3<f32> {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal = calculate_normal(in.normal_id);
     let base_color = palette.color[in.material_id];
-    var final_light = vec3<f32>(0.05);
+    var final_light = vec3<f32>(0.2);
 
     for (var i: u32 = 0u; i < light_data.light_count; i += 1u) {
         let light = light_data.lights[i];

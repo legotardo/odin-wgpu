@@ -7,6 +7,19 @@ import "../constants"
 import "../ecs"
 import "../renderer"
 
+spawn_world_chunks :: proc(state: ^GameState) {
+	for z in 0..< constants.WORLD_SIZE {
+		for x in 0..< constants.WORLD_SIZE {
+			chunk := ecs.entity_create(state.world)
+			ecs.entity_add_transform(state.world, chunk, {
+				position = { f32(x * constants.CHUNK_SIZE), 0, f32(z * constants.CHUNK_SIZE) },
+				scale = { 1, 1, 1 }
+			})
+			ecs.entity_add_chunk(state.world, chunk, {})
+		}
+	}
+}
+
 system_generate_chunk :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
