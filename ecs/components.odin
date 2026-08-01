@@ -37,6 +37,7 @@ ChunkComponent :: struct {
 	blocks:       [constants.CHUNK_SIZE_CUBED]Block,
 	is_generated: bool,
 	is_dirty:     bool,
+	is_meshing:   bool,
 }
 
 

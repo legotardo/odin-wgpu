@@ -1,5 +1,7 @@
 package game
 
+import "core:math/linalg"
+import "core:thread"
 import "core:fmt"
 import "../constants"
 import "../ecs"
@@ -43,31 +45,59 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
 
-		if !chunk.is_generated || !chunk.is_dirty do continue
+		// if !chunk.is_generated || !chunk.is_dirty do continue
 
-		vertices, indices := generate_chunk_mesh(chunk, t)
+		if chunk.is_generated && chunk.is_dirty && !chunk.is_meshing {
+			chunk.is_meshing = true
 
-		if len(vertices) > 0 {
-			mesh := renderer.mesh_create(state.renderer, vertices, indices)
-			mesh_handle := assets_register_mesh(&state.assets, fmt.aprintf("chunk_%f_%f_%f", t.position.x, t.position.y, t.position.z), mesh)
+			task_data := new(MeshTaskData)
+			task_data.chunk = chunk
+			task_data.chunk_pos = t.position
+			task_data.entity_index = i
 
-			ecs.entity_add_render(state.world, state.world.entities[i], {
+			append(&state.mesh_tasks, task_data)
+			thread.pool_add_task(state.mesh_pool, context.allocator, chunk_mesh_task, task_data, 0)
+		}
+	}
+
+	for thread.pool_num_done(state.mesh_pool) > 0 {
+		task, ok := thread.pool_pop_done(state.mesh_pool)
+		if !ok do continue
+		data := cast(^MeshTaskData)task.data
+
+		if len(data.vertices) > 0 {
+			mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
+			mesh_handle := assets_register_mesh(&state.assets, fmt.aprintf("chunk_%f_%f_%f", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z), mesh)
+
+			ecs.entity_add_render(state.world, state.world.entities[data.entity_index], {
 				mesh = string(mesh_handle),
 				material = "chunk",
 				ignore_instancing = true,
 			})
 		}
 
-		chunk.is_dirty = false
+		data.chunk.is_dirty = false
+		data.chunk.is_meshing = false
+
+		delete(data.vertices)
+		delete(data.indices)
+		free(data)
 	}
 }
 
-@(private = "file")
-generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, transform: ^ecs.TransformComponent) -> ([]renderer.Vertex, []u16) {
-	vertices := make([dynamic]renderer.Vertex, context.temp_allocator)
-	indices := make([dynamic]u16, context.temp_allocator)
+chunk_mesh_task :: proc(t: thread.Task) {
+	data := cast(^MeshTaskData)t.data
 
-	mask := make([]i16, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	data.vertices, data.indices = generate_chunk_mesh(data.chunk, data.chunk_pos)
+}
+
+@(private = "file")
+generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, chunk_pos: linalg.Vector3f32) -> ([]renderer.Vertex, []u16) {
+	vertices := make([dynamic]renderer.Vertex)
+	indices := make([dynamic]u16)
+
+	mask := make([]i16, constants.CHUNK_SIZE_SQUARED)
+	defer delete(mask)
 
 	// Search by 3 dimesions
 	for axis in 0..<3 {
@@ -139,8 +169,6 @@ generate_chunk_mesh :: proc(chunk: ^ecs.ChunkComponent, transform: ^ecs.Transfor
 						if current_mask < 0 {
 							normal_id += 1
 						}
-
-						chunk_pos := transform.position
 
 						bottom_left := renderer.Vertex{
 							position = {
