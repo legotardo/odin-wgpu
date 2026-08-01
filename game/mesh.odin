@@ -10,4 +10,5 @@ ChunkTaskData :: struct {
 	neighbors: [6]^ecs.ChunkComponent,
 	vertices: []renderer.Vertex,
 	indices: []u16,
+	lod: int,
 }

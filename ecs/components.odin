@@ -35,6 +35,7 @@ FirstPersonComponent :: struct {
 Block :: distinct u8
 ChunkComponent :: struct {
 	blocks:       [constants.CHUNK_SIZE_CUBED]Block,
+	current_lod:  int,
 	is_generated: bool,
 	is_dirty:     bool,
 	is_meshing:   bool,

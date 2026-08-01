@@ -68,6 +68,20 @@ game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
 	return linalg.MATRIX4F32_IDENTITY
 }
 
+game_get_camera_transform :: proc(state: ^GameState) -> ecs.TransformComponent {
+	mask := ecs.ComponentMask{.TransformComponent, .CameraComponent}
+
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask) == mask {
+			t := state.world.transforms[i]
+
+			return t
+		}
+	}
+
+	return { }
+}
+
 game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 	mask := ecs.ComponentMask{.CameraComponent}
 
