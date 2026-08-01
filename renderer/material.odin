@@ -66,6 +66,13 @@ material_create :: proc(
 				cullMode = r.use_wireframe ? .None : .Back,
 			},
 			multisample = {count = 1, mask = 0xFFFFFFFF},
+			depthStencil = &{
+				format = .Depth24Plus,
+				depthWriteEnabled = .True,
+				depthCompare = .Less,
+				stencilBack = {},
+				stencilFront = {},
+			}
 		},
 	)
 

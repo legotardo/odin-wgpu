@@ -70,7 +70,7 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 
 		queue := wgpu.DeviceGetQueue(device)
 
-		state.renderer = renderer.renderer_init(device, queue)
+		state.renderer = renderer.renderer_init(device, queue, &state.config)
 		state.game_state = game.game_init(&state.renderer, &state.window)
 		game.game_awake(&state.game_state)
 
@@ -130,6 +130,8 @@ resize :: proc(width, height: u32) {
 	wgpu.SurfaceConfigure(state.surface, &state.config)
 
 	game.game_update_camera_component(&state.game_state, state.config.width, state.config.height)
+
+	renderer.renderer_resize(&state.renderer, &state.config)
 }
 
 @(private = "file")

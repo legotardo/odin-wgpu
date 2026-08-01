@@ -13,6 +13,8 @@ Renderer :: struct {
 
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
+
+	depth_texture_view: wgpu.TextureView,
 }
 
 RenderItem :: struct {
@@ -20,9 +22,10 @@ RenderItem :: struct {
 	material: ^Material,
 }
 
-renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Renderer {
+renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.SurfaceConfiguration) -> Renderer {
 	camera_buffer := renderer_create_camera_buffer(device)
 	palette_buffer := renderer_create_palette_buffer(device)
+	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
 
 	layout_entries := [2]wgpu.BindGroupLayoutEntry {
 		{
@@ -78,6 +81,7 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Renderer {
 		global_layout_group = global_layout_group,
 		camera_buffer = camera_buffer,
 		palette_buffer = palette_buffer,
+		depth_texture_view = depth_texture_view,
 	}
 }
 
@@ -96,6 +100,13 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 				depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
 				clearValue = {0.47, 0.68, 0.87, 1},
 			},
+			depthStencilAttachment = &{
+				view = r.depth_texture_view,
+				depthLoadOp = .Clear,
+				depthStoreOp = .Store,
+				depthClearValue = 1.0,
+				depthReadOnly = false,
+			}
 		},
 	)
 
@@ -136,9 +147,15 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 	wgpu.QueueSubmit(r.queue, {command_buffer})
 }
 
+renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
+	r.depth_texture_view = renderer_create_depth_texture_view(r.device, s_config)
+}
+
 renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.BufferRelease(r.camera_buffer)
 	wgpu.BufferRelease(r.palette_buffer)
+
+	wgpu.TextureViewRelease(r.depth_texture_view)
 
 	wgpu.BindGroupRelease(r.global_bind_group)
 	wgpu.BindGroupLayoutRelease(r.global_layout_group)
