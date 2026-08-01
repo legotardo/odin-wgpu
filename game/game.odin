@@ -96,7 +96,7 @@ game_awake :: proc(state: ^GameState) {
 	// )
 
 	light := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, light, {position = {5, 5, 5}, scale = {1, 1, 1}, rotation = linalg.QUATERNIONF32_IDENTITY })
+	ecs.entity_add_transform(state.world, light, {position = {5, 5, 5}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
 	ecs.entity_add_light(
 		state.world,
 		light,
@@ -114,7 +114,7 @@ game_awake :: proc(state: ^GameState) {
 	)
 
 	light2 := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {1, 1, 1}, rotation = linalg.QUATERNIONF32_IDENTITY })
+	ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
 	ecs.entity_add_light(
 		state.world,
 		light2,
@@ -155,7 +155,16 @@ game_update :: proc(state: ^GameState, dt: f32) {
 		// Pipeline needs to be created again to renderer in wireframe mode
 		assets_register_material(
 			&state.assets,
-			"minimal",
+			"chunk",
+			renderer.material_create(
+				state.renderer,
+				string(chunk_shader_src),
+				[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+			),
+		)
+		assets_register_material(
+			&state.assets,
+			"default",
 			renderer.material_create(
 				state.renderer,
 				string(default_shader_src),
