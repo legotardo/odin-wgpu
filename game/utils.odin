@@ -4,10 +4,14 @@ import "core:math/linalg"
 
 import "../ecs"
 import "../renderer"
+import "../constants"
 
 game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 	items := make([dynamic]renderer.RenderItem, context.temp_allocator)
 	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
+
+	cam_matrix := game_get_camera_matrix(state)
+	frustum := frustum_extract(cam_matrix)
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & required_mask) != required_mask do continue
@@ -15,9 +19,28 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		t := state.world.transforms[i]
 		r := state.world.renders[i]
 
+		is_chunk := (state.world.masks[i] & ecs.ComponentMask{.ChunkComponent}) == ecs.ComponentMask{.ChunkComponent}
+
+		local_aabb: AABB
+		if is_chunk {
+			local_aabb = AABB{
+				min = {0, 0, 0},
+				max = {f32(constants.CHUNK_SIZE), f32(constants.CHUNK_SIZE), f32(constants.CHUNK_SIZE)}
+			}
+		} else {
+			local_aabb = AABB{
+				min = {-1, -1, -1},
+				max = {1, 1, 1}
+			}
+		}
+
+		m := transform_matrix(t)
+		world_aabb := aabb_transform(local_aabb, m)
+
+		if !aabb_in_frustum(world_aabb, frustum) do continue
+
 		mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
 		mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
-		m := transform_matrix(t)
 
 		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr, transform = m, should_use_instance = !r.ignore_instancing})
 	}
