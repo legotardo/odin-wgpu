@@ -4,3 +4,4 @@ web/game.wasm
 odin-wgpu
 odin-wgpu.exe
 build/
+tmp/

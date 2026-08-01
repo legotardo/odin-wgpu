@@ -126,12 +126,20 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 chunk_mesh_task :: proc(t: thread.Task) {
 	data := cast(^ChunkTaskData)t.data
 
-	data.vertices, data.indices = generate_chunk_mesh(
+	temp_vertices, temp_indices := generate_chunk_mesh(
 		data.chunk,
 		data.chunk_pos,
 		data.neighbors,
 		data.lod,
 	)
+
+	data.vertices = make([]renderer.Vertex, len(temp_vertices))
+	copy(data.vertices, temp_vertices)
+
+	data.indices = make([]u16, len(temp_indices))
+	copy(data.indices, temp_indices)
+
+	free_all(context.temp_allocator)
 }
 
 @(private = "file")
@@ -141,8 +149,8 @@ generate_chunk_mesh :: proc(
 	neighbors: [6]^ecs.ChunkComponent,
 	lod: int,
 ) -> ([]renderer.Vertex, []u16) {
-	vertices := make([dynamic]renderer.Vertex)
-	indices := make([dynamic]u16)
+	vertices := make([dynamic]renderer.Vertex, context.temp_allocator)
+	indices := make([dynamic]u16, context.temp_allocator)
 
 	cs_lod := (constants.CHUNK_SIZE + lod - 1) / lod
 	mask := make([]i16, cs_lod * cs_lod, context.temp_allocator)

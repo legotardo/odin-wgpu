@@ -81,7 +81,7 @@ game_awake :: proc(state: ^GameState) {
 	ecs.entity_add_first_person(
 		state.world,
 		camera,
-		{sensitivity = 0.1, pitch = 0, yaw = 0, speed = 5},
+		{sensitivity = 0.1, pitch = 0, yaw = 0, speed = 50},
 	)
 	ecs.entity_add_camera(
 		state.world,
