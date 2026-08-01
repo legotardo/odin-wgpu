@@ -61,8 +61,8 @@ input_set_mouse_position :: proc(manager: ^InputManager, x, y: f32) {
 		manager.first_mouse = false
 	}
 
-	manager.mouse_dx = x - manager.mouse_x
-	manager.mouse_dy = y - manager.mouse_y
+	manager.mouse_dx += x - manager.mouse_x
+	manager.mouse_dy += y - manager.mouse_y
 
 	manager.mouse_x = x
 	manager.mouse_y = y

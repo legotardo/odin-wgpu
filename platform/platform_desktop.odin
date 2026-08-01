@@ -33,7 +33,7 @@ create_window :: proc() -> Window {
 
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
 
-	handle := glfw.CreateWindow(800, 600, "Odin :)", nil, nil)
+	handle := glfw.CreateWindow(1920, 1080, "Odin :)", nil, nil)
 	assert(handle != nil, "Failed to create a GLFW Window")
 
 	glfw.SetFramebufferSizeCallback(handle, framebuffer_callback)
@@ -41,6 +41,10 @@ create_window :: proc() -> Window {
 	glfw.SetCursorPosCallback(handle, cursor_pos_callback)
 
 	glfw.SetInputMode(handle, glfw.CURSOR, glfw.CURSOR_DISABLED)
+
+	if glfw.RawMouseMotionSupported() {
+		glfw.SetInputMode(handle, glfw.RAW_MOUSE_MOTION, 1)
+	}
 
 	return {width = 800, height = 600, handle = handle}
 }
