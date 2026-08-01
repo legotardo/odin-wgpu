@@ -21,8 +21,7 @@ GameState :: struct {
 	window:   ^platform.Window,
 	palette: Palette,
 	
-	mesh_pool: ^thread.Pool,
-	mesh_tasks: [dynamic]^MeshTaskData,
+	thread_pool: ^thread.Pool,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState {
@@ -30,12 +29,11 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState 
 	input := input.input_init()
 	world := ecs.world_init()
 	palette := palette_init_default()
-	mesh_pool := new(thread.Pool)
-	mesh_tasks := make([dynamic]^MeshTaskData)
+	thread_pool := new(thread.Pool)
 
 	num_cpus := os.get_processor_core_count()
-	thread.pool_init(mesh_pool, context.allocator, num_cpus - 1)
-	thread.pool_start(mesh_pool)
+	thread.pool_init(thread_pool, context.allocator, num_cpus - 1)
+	thread.pool_start(thread_pool)
 
 	return {
 		assets = assets,
@@ -44,8 +42,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState 
 		input = input,
 		window = window,
 		palette = palette,
-		mesh_pool = mesh_pool,
-		mesh_tasks = mesh_tasks,
+		thread_pool = thread_pool,
 	}
 }
 
@@ -194,8 +191,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 game_destroy :: proc(state: ^GameState) {
 	assets_destroy(&state.assets)
 
-	thread.pool_join(state.mesh_pool)
-	thread.pool_destroy(state.mesh_pool)
-	free(state.mesh_pool)
-	delete(state.mesh_tasks)
+	thread.pool_join(state.thread_pool)
+	thread.pool_destroy(state.thread_pool)
+	free(state.thread_pool)
 }

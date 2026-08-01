@@ -45,8 +45,6 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
 
-		// if !chunk.is_generated || !chunk.is_dirty do continue
-
 		if chunk.is_generated && chunk.is_dirty && !chunk.is_meshing {
 			chunk.is_meshing = true
 
@@ -55,13 +53,12 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			task_data.chunk_pos = t.position
 			task_data.entity_index = i
 
-			append(&state.mesh_tasks, task_data)
-			thread.pool_add_task(state.mesh_pool, context.allocator, chunk_mesh_task, task_data, 0)
+			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
 		}
 	}
 
-	for thread.pool_num_done(state.mesh_pool) > 0 {
-		task, ok := thread.pool_pop_done(state.mesh_pool)
+	for thread.pool_num_done(state.thread_pool) > 0 {
+		task, ok := thread.pool_pop_done(state.thread_pool)
 		if !ok do continue
 		data := cast(^MeshTaskData)task.data
 
