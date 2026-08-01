@@ -87,6 +87,19 @@ game_awake :: proc(state: ^GameState) {
 	// 	{mesh = string(quad_mesh), material = string(minimal_material)},
 	// )
 
+	light := ecs.entity_create(state.world)
+	ecs.entity_add_transform(state.world, light, { position = {5, 5, 5}})
+	ecs.entity_add_light(
+		state.world,
+		light,
+		{
+			color = {1, 1, 1},
+			intensity = 1,
+			light_type = .Point,
+			range = 20,
+		},
+	)
+
 	chunk := ecs.entity_create(state.world)
 	ecs.entity_add_transform(state.world, chunk, {})
 	ecs.entity_add_chunk(state.world, chunk, {})
@@ -98,6 +111,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	system_update_camera(state, dt)
 	system_generate_chunk(state)
 	system_generate_chunk_mesh(state)
+	system_update_lights(state)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
 		state.renderer.use_wireframe = !state.renderer.use_wireframe

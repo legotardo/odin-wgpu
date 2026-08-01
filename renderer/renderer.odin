@@ -13,6 +13,7 @@ Renderer :: struct {
 
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
+	light_buffer: wgpu.Buffer,
 
 	depth_texture_view: wgpu.TextureView,
 }
@@ -25,9 +26,10 @@ RenderItem :: struct {
 renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.SurfaceConfiguration) -> Renderer {
 	camera_buffer := renderer_create_camera_buffer(device)
 	palette_buffer := renderer_create_palette_buffer(device)
+	light_buffer := renderer_create_light_buffer(device)
 	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
 
-	layout_entries := [2]wgpu.BindGroupLayoutEntry {
+	layout_entries := [3]wgpu.BindGroupLayoutEntry {
 		{
 			binding = 0,
 			visibility = {.Vertex},
@@ -46,6 +48,15 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 				minBindingSize = size_of(linalg.Vector4f32) * 256,
 			},
 		},
+		{
+			binding = 2,
+			visibility = {.Fragment},
+			buffer = {
+				type = .ReadOnlyStorage,
+				hasDynamicOffset = false,
+				minBindingSize = size_of(u32) * 4 + size_of(LightData) * 1024,
+			},
+		},
 	}
 
 
@@ -58,9 +69,10 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		},
 	)
 
-	group_entries := [2]wgpu.BindGroupEntry {
+	group_entries := [3]wgpu.BindGroupEntry {
 		{binding = 0, buffer = camera_buffer, size = size_of(linalg.Matrix4f32)},
 		{binding = 1, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
+		{binding = 2, buffer = light_buffer, size = size_of(u32) * 4 + size_of(LightData) * 1024},
 	}
 
 	global_bind_group := wgpu.DeviceCreateBindGroup(
@@ -82,6 +94,7 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		camera_buffer = camera_buffer,
 		palette_buffer = palette_buffer,
 		depth_texture_view = depth_texture_view,
+		light_buffer = light_buffer,
 	}
 }
 

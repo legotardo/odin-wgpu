@@ -1,6 +1,7 @@
 package ecs
 
 import "../constants"
+import "../renderer"
 import "core:math/linalg"
 
 TransformComponent :: struct {
@@ -35,4 +36,12 @@ ChunkComponent :: struct {
 	blocks:       [constants.CHUNK_SIZE_CUBED]Block,
 	is_generated: bool,
 	is_dirty:     bool,
+}
+
+
+LightComponent :: struct {
+	light_type: renderer.LightType,
+	color: linalg.Vector3f32,
+	intensity: f32,
+	range:     f32,
 }
