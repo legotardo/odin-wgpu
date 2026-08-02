@@ -2,7 +2,6 @@ package game
 
 import "core:os"
 import "core:thread"
-import "core:math/linalg"
 import "vendor:wgpu"
 
 import "../ecs"
@@ -75,27 +74,6 @@ game_awake :: proc(state: ^GameState) {
 	)
 	// assets
 
-	width, height := platform.get_frame_size(state.window)
-	camera := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, camera, {position = {0, 0, 2}, scale = {1, 1, 1}})
-	ecs.entity_add_first_person(
-		state.world,
-		camera,
-		{sensitivity = 0.1, pitch = 0, yaw = 0, speed = 50},
-	)
-	ecs.entity_add_camera(
-		state.world,
-		camera,
-		{
-			target = {0, 0, 0},
-			up = {0, 1, 0},
-			aspect = f32(width) / f32(height),
-			fovy = 90 * linalg.RAD_PER_DEG,
-			zfar = 100,
-			znear = 0.1,
-		},
-	)
-
 	// quad := ecs.entity_create(state.world)
 	// ecs.entity_add_transform(state.world, quad, {})
 	// ecs.entity_add_render(
@@ -140,13 +118,15 @@ game_awake :: proc(state: ^GameState) {
 	// 	{mesh = string(quad_mesh), material = string(default_material)},
 	// )
 	
+	spawn_player(state)
 	spawn_world_chunks(state)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
 	// fmt.printf("%f FPS\n", 1 / dt)
 
-	system_update_camera(state, dt)
+	system_physics(state, dt)
+	system_update_player(state, dt)
 	system_generate_chunk(state)
 	system_generate_chunk_mesh(state)
 	system_update_lights(state)

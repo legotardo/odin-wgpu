@@ -9,6 +9,8 @@ ComponentType :: enum {
 	FirstPersonComponent,
 	ChunkComponent,
 	LightComponent,
+	PhysicsComponent,
+	ColliderComponent,
 }
 
 ComponentMask :: bit_set[ComponentType]
@@ -25,6 +27,8 @@ World :: struct {
 	first_persons:      [MAX_ENTITIES]FirstPersonComponent,
 	chunks:             [MAX_ENTITIES]ChunkComponent,
 	lights:             [MAX_ENTITIES]LightComponent,
+	physics:            [MAX_ENTITIES]PhysicsComponent,
+	colliders:          [MAX_ENTITIES]ColliderComponent,
 	cameras:            [1]CameraComponent,
 }
 
@@ -74,15 +78,25 @@ entity_destroy :: proc(w: ^World, e: Entity) {
 	append(&w.free_indices, idx)
 }
 
-entity_add_transform :: proc(w: ^World, e: Entity, t: TransformComponent) {
+entity_disable_components :: proc(w: ^World, e: Entity, m: ComponentMask) {
 	idx := entity_index(e)
-	w.transforms[idx] = t
+	w.masks[idx] -= m
+}
+
+entity_enable_components :: proc(w: ^World, e: Entity, m: ComponentMask) {
+	idx := entity_index(e)
+	w.masks[idx] += m
+}
+
+entity_add_transform :: proc(w: ^World, e: Entity, c: TransformComponent) {
+	idx := entity_index(e)
+	w.transforms[idx] = c
 	w.masks[idx] += {.TransformComponent}
 }
 
-entity_add_render :: proc(w: ^World, e: Entity, r: RenderComponent) {
+entity_add_render :: proc(w: ^World, e: Entity, c: RenderComponent) {
 	idx := entity_index(e)
-	w.renders[idx] = r
+	w.renders[idx] = c
 	w.masks[idx] += {.RenderComponent}
 }
 
@@ -92,9 +106,9 @@ entity_add_camera :: proc(w: ^World, e: Entity, c: CameraComponent) {
 	w.masks[idx] += {.CameraComponent}
 }
 
-entity_add_first_person :: proc(w: ^World, e: Entity, f: FirstPersonComponent) {
+entity_add_first_person :: proc(w: ^World, e: Entity, c: FirstPersonComponent) {
 	idx := entity_index(e)
-	w.first_persons[idx] = f
+	w.first_persons[idx] = c
 	w.masks[idx] += {.FirstPersonComponent}
 }
 
@@ -104,9 +118,20 @@ entity_add_chunk :: proc(w: ^World, e: Entity, c: ChunkComponent) {
 	w.masks[idx] += {.ChunkComponent}
 }
 
-entity_add_light :: proc(w: ^World, e: Entity, l: LightComponent) {
+entity_add_light :: proc(w: ^World, e: Entity, c: LightComponent) {
 	idx := entity_index(e)
-	w.lights[idx] = l
+	w.lights[idx] = c
 	w.masks[idx] += {.LightComponent}
 }
 
+entity_add_physics :: proc(w: ^World, e: Entity, c: PhysicsComponent) {
+	idx := entity_index(e)
+	w.physics[idx] = c
+	w.masks[idx] += {.PhysicsComponent}
+}
+
+entity_add_collider :: proc(w: ^World, e: Entity, c: ColliderComponent) {
+	idx := entity_index(e)
+	w.colliders[idx] = c
+	w.masks[idx] += {.ColliderComponent}
+}

@@ -16,6 +16,7 @@ RenderComponent :: struct {
 }
 
 CameraComponent :: struct {
+	offset: linalg.Vector3f32,
 	target: linalg.Vector3f32,
 	up:     linalg.Vector3f32,
 	aspect: f32,
@@ -45,11 +46,21 @@ ChunkComponent :: struct {
 	is_meshing:   bool,
 }
 
-
 LightComponent :: struct {
 	light_type: renderer.LightType,
 	color: linalg.Vector3f32,
 	direction: linalg.Vector3f32,
 	intensity: f32,
 	range:     f32,
+}
+
+PhysicsComponent :: struct {
+	velocity: linalg.Vector3f32,
+	is_grounded: bool,
+	friction: f32,
+}
+
+ColliderComponent :: struct {
+	size: linalg.Vector3f32,
+	offset: linalg.Vector3f32,
 }

@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 import "core:math/noise"
 import "core:math/linalg"
 import "core:thread"
@@ -9,8 +10,8 @@ import "../renderer"
 
 spawn_world_chunks :: proc(state: ^GameState) {
 	for y in 0 ..< 4 {
-		for z in 0..< constants.WORLD_SIZE {
-			for x in 0..< constants.WORLD_SIZE {
+		for z in -constants.WORLD_SIZE..< constants.WORLD_SIZE {
+			for x in -constants.WORLD_SIZE..< constants.WORLD_SIZE {
 				chunk := ecs.entity_create(state.world)
 				ecs.entity_add_transform(state.world, chunk, {
 					position = { 
@@ -51,8 +52,7 @@ system_generate_chunk :: proc(state: ^GameState) {
 system_generate_chunk_mesh :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
-	cam_t := game_get_camera_transform(state)
-	cam_pos := cam_t.position
+	cam_pos := game_get_camera_eye(state)
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) != mask do continue
@@ -365,6 +365,7 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.B
 	}
 
 	if chunk.bits_per_block == 0 {
+		if len(chunk.palette) == 0 do return 0
 		return chunk.palette[0]
 	}
 
@@ -518,4 +519,51 @@ sample_face_ao :: proc(
 	ao_tl = vertex_ao(side_l, side_t, corner_tl)
 
 	return
+}
+
+world_get_block :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.Block {
+	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+
+	chunk_x := math.floor(world_pos.x / chunk_size_world) * chunk_size_world
+	chunk_y := math.floor(world_pos.y / chunk_size_world) * chunk_size_world
+	chunk_z := math.floor(world_pos.z / chunk_size_world) * chunk_size_world
+
+	chunk_pos := linalg.Vector3f32{chunk_x, chunk_y, chunk_z}
+
+	chunk := get_chunk_at(world, chunk_pos)
+	if chunk == nil do return 0
+
+	local_x := int(math.floor((world_pos.x - chunk_x) / constants.BLOCK_SIZE))
+	local_y := int(math.floor((world_pos.y - chunk_y) / constants.BLOCK_SIZE))
+	local_z := int(math.floor((world_pos.z - chunk_z) / constants.BLOCK_SIZE))
+
+	return chunk_get_block_local(chunk, local_x, local_y, local_z)
+}
+
+world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
+	min_x := int(math.floor(aabb.min.x / constants.BLOCK_SIZE))
+	max_x := int(math.floor(aabb.max.x / constants.BLOCK_SIZE))
+	min_y := int(math.floor(aabb.min.y / constants.BLOCK_SIZE))
+	max_y := int(math.floor(aabb.max.y / constants.BLOCK_SIZE))
+	min_z := int(math.floor(aabb.min.z / constants.BLOCK_SIZE))
+	max_z := int(math.floor(aabb.max.z / constants.BLOCK_SIZE))
+
+	for y in min_y ..= max_y {
+		for z in min_z ..= max_z {
+			for x in min_x ..= max_x {
+				world_pos := linalg.Vector3f32{
+					f32(x) * constants.BLOCK_SIZE,
+					f32(y) * constants.BLOCK_SIZE,
+					f32(z) * constants.BLOCK_SIZE,
+				}
+
+				block := world_get_block(world, world_pos)
+				if block != 0 {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }

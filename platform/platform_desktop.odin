@@ -131,6 +131,8 @@ key_from_glfw :: proc(key: c.int) -> input.Key {
 		return .D
 	case glfw.KEY_P:
 		return .P
+	case glfw.KEY_F:
+		return .F
 	case glfw.KEY_SPACE:
 		return .Space
 	case glfw.KEY_LEFT_SHIFT:

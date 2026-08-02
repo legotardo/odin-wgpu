@@ -58,7 +58,9 @@ game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
 			t := state.world.transforms[i]
 			c := state.world.cameras[i]
 
-			view := linalg.matrix4_look_at_f32(t.position, c.target, c.up)
+			eye_pos := t.position + c.offset
+
+			view := linalg.matrix4_look_at_f32(eye_pos, c.target + c.offset, c.up)
 			proj := linalg.matrix4_perspective_f32(c.fovy, c.aspect, c.znear, c.zfar)
 
 			return proj * view
@@ -68,14 +70,15 @@ game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
 	return linalg.MATRIX4F32_IDENTITY
 }
 
-game_get_camera_transform :: proc(state: ^GameState) -> ecs.TransformComponent {
+game_get_camera_eye :: proc(state: ^GameState) -> linalg.Vector3f32 {
 	mask := ecs.ComponentMask{.TransformComponent, .CameraComponent}
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) == mask {
 			t := state.world.transforms[i]
+			c := state.world.cameras[i]
 
-			return t
+			return t.position + c.offset
 		}
 	}
 

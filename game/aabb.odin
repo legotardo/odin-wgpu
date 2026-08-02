@@ -1,6 +1,7 @@
 package game
 
 import "core:math/linalg"
+import "../ecs"
 
 AABB :: struct {
     min: linalg.Vector3f32,
@@ -41,4 +42,14 @@ aabb_transform :: proc(a: AABB, model: linalg.Matrix4f32) -> AABB {
     }
 
     return AABB{min = new_min, max = new_max}
+}
+
+aabb_by_collider :: proc(pos: linalg.Vector3f32, col: ^ecs.ColliderComponent) -> AABB {
+    center := pos + col.offset
+    half_size := col.size * 0.5
+
+    return {
+        min = center - half_size,
+        max = center + half_size
+    }
 }
