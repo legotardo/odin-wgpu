@@ -8,18 +8,22 @@ import "../ecs"
 import "../renderer"
 
 spawn_world_chunks :: proc(state: ^GameState) {
-	// for y in 0 ..< 4 {
+	for y in 0 ..< 4 {
 		for z in 0..< constants.WORLD_SIZE {
 			for x in 0..< constants.WORLD_SIZE {
 				chunk := ecs.entity_create(state.world)
 				ecs.entity_add_transform(state.world, chunk, {
-					position = { f32(x * constants.CHUNK_SIZE), 0, f32(z * constants.CHUNK_SIZE) },
+					position = { 
+						f32(x * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
+						f32(y * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
+						f32(z * constants.CHUNK_SIZE) * constants.BLOCK_SIZE 
+					},
 					scale = { 1, 1, 1 }
 				})
 				ecs.entity_add_chunk(state.world, chunk, {})
 			}
 		}
-	// }
+	}
 }
 
 system_generate_chunk :: proc(state: ^GameState) {
@@ -81,7 +85,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			task_data.entity_index = i
 			task_data.lod = desired_lod
 
-			cs := f32(constants.CHUNK_SIZE)
+			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 			task_data.neighbors[0] = get_chunk_at(state.world, t.position + {-cs, 0  , 0})
 			task_data.neighbors[1] = get_chunk_at(state.world, t.position + {cs , 0  , 0})
 			task_data.neighbors[2] = get_chunk_at(state.world, t.position + {0  , -cs, 0})
@@ -281,20 +285,38 @@ generate_chunk_mesh :: proc(
 							normal_id += 1
 						}
 
+						bs := f32(constants.BLOCK_SIZE)
+
 						bottom_left := renderer.Vertex{
-							position = {f32(quad_pos[0]) + chunk_pos.x, f32(quad_pos[1]) + chunk_pos.y, f32(quad_pos[2]) + chunk_pos.z},
+							position = {
+								(f32(quad_pos[0]) * bs) + chunk_pos.x, 
+								(f32(quad_pos[1]) * bs) + chunk_pos.y, 
+								(f32(quad_pos[2]) * bs) + chunk_pos.z
+							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[0],
 						}
 						bottom_right := renderer.Vertex{
-							position = {f32(quad_pos[0] + delta_u[0]) + chunk_pos.x, f32(quad_pos[1] + delta_u[1]) + chunk_pos.y, f32(quad_pos[2] + delta_u[2]) + chunk_pos.z},
+							position = {
+								(f32(quad_pos[0] + delta_u[0]) * bs) + chunk_pos.x, 
+								(f32(quad_pos[1] + delta_u[1]) * bs) + chunk_pos.y, 
+								(f32(quad_pos[2] + delta_u[2]) * bs) + chunk_pos.z
+							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[1],
 						}
 						top_right := renderer.Vertex{
-							position = {f32(quad_pos[0] + delta_u[0] + delta_v[0]) + chunk_pos.x, f32(quad_pos[1] + delta_u[1] + delta_v[1]) + chunk_pos.y, f32(quad_pos[2] + delta_u[2] + delta_v[2]) + chunk_pos.z},
+							position = {
+								(f32(quad_pos[0] + delta_u[0] + delta_v[0]) * bs) + chunk_pos.x, 
+								(f32(quad_pos[1] + delta_u[1] + delta_v[1]) * bs) + chunk_pos.y, 
+								(f32(quad_pos[2] + delta_u[2] + delta_v[2]) * bs) + chunk_pos.z
+							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[2],
 						}
 						top_left := renderer.Vertex{
-							position = {f32(quad_pos[0] + delta_v[0]) + chunk_pos.x, f32(quad_pos[1] + delta_v[1]) + chunk_pos.y, f32(quad_pos[2] + delta_v[2]) + chunk_pos.z},
+							position = {
+								(f32(quad_pos[0] + delta_v[0]) * bs) + chunk_pos.x, 
+								(f32(quad_pos[1] + delta_v[1]) * bs) + chunk_pos.y, 
+								(f32(quad_pos[2] + delta_v[2]) * bs) + chunk_pos.z
+							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[3],
 						}
 
