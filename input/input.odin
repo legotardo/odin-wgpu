@@ -8,6 +8,7 @@ Key :: enum u8 {
 	D,
 	P,
 	F,
+	LeftAlt,
 	Space,
 	LeftShift,
 	Escape,

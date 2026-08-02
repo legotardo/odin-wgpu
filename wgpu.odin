@@ -8,7 +8,7 @@ import "input"
 import "platform"
 import "renderer"
 
-wgpu_initialize :: proc(window: ^platform.Window) {
+wgpu_init :: proc(window: ^platform.Window) {
 	state.window.resize_callback = resize
 	state.window.key_callback = key_callback
 	state.window.cursor_callback = cursor_callback
@@ -70,10 +70,11 @@ wgpu_initialize :: proc(window: ^platform.Window) {
 
 		queue := wgpu.DeviceGetQueue(device)
 
-		state.renderer = renderer.renderer_init(device, queue, &state.config)
-		state.game_state = game.game_init(&state.renderer, &state.window)
-		game.game_awake(&state.game_state)
+		mu_ctx := game.microui_init()
 
+		state.renderer = renderer.renderer_init(device, queue, &state.config, &state.window, mu_ctx)
+		state.game_state = game.game_init(&state.renderer, &state.window, mu_ctx)
+		game.game_awake(&state.game_state)
 		renderer.renderer_update_palette_buffer(&state.renderer, &state.game_state.palette.colors)
 
 		platform.prepare_context(&state.window)

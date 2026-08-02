@@ -60,6 +60,8 @@ system_update_player :: proc(state: ^GameState, dt: f32) {
 		fps := &state.world.first_persons[i]
 		p := &state.world.physics[i]
 
+		speed := has_physics ? fps.speed : fps.speed / 4
+
 		fps.yaw += state.input.mouse_dx * fps.sensitivity
 		fps.pitch -= state.input.mouse_dy * fps.sensitivity
 
@@ -112,12 +114,12 @@ system_update_player :: proc(state: ^GameState, dt: f32) {
 				move_dir = linalg.normalize(move_dir)
 			}
 
-			p.velocity.x += move_dir.x * fps.speed * dt
-			p.velocity.z += move_dir.z * fps.speed * dt
+			p.velocity.x += move_dir.x * speed * dt
+			p.velocity.z += move_dir.z * speed * dt
 		} else {
-			t.position += forward * input_dir.z * fps.speed * dt
-			t.position += right * input_dir.x * fps.speed * dt
-			t.position += up * input_dir.y * fps.speed * dt
+			t.position += forward * input_dir.z * speed * dt
+			t.position += right * input_dir.x * speed * dt
+			t.position += up * input_dir.y * speed * dt
 		}
 
 		cam.target = t.position + forward

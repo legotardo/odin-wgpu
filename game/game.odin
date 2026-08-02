@@ -9,6 +9,8 @@ import "../input"
 import "../platform"
 import "../renderer"
 
+import mu "vendor:microui"
+
 default_shader_src := #load("../assets/shaders/default.wgsl")
 chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
 
@@ -21,9 +23,11 @@ GameState :: struct {
 	palette: Palette,
 	
 	thread_pool: ^thread.Pool,
+
+	mu_ctx: ^mu.Context,
 }
 
-game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState {
+game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> GameState {
 	assets := assets_init()
 	input := input.input_init()
 	world := ecs.world_init()
@@ -42,6 +46,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window) -> GameState 
 		window = window,
 		palette = palette,
 		thread_pool = thread_pool,
+		mu_ctx = mu_ctx,
 	}
 }
 
@@ -158,8 +163,13 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	if (input.is_key_just_pressed(&state.input, .Escape)) {
 		state.window.terminate = true
 	}
+	if (input.is_key_just_pressed(&state.input, .LeftAlt)) {
+		platform.toggle_cursor(state.window)
+	}
 
 	input.input_update(&state.input)
+
+	microui_update(state)
 }
 
 game_destroy :: proc(state: ^GameState) {
@@ -168,4 +178,5 @@ game_destroy :: proc(state: ^GameState) {
 	thread.pool_join(state.thread_pool)
 	thread.pool_destroy(state.thread_pool)
 	free(state.thread_pool)
+	free(state.mu_ctx)
 }

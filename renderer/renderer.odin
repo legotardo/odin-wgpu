@@ -2,23 +2,43 @@ package renderer
 
 import "vendor:wgpu"
 import "core:math/linalg"
+import mu "vendor:microui"
 
-import "../constants"
+import "../platform"
 
 Renderer :: struct {
 	device:        wgpu.Device,
 	queue:         wgpu.Queue,
+	window: ^platform.Window,
 	use_wireframe: bool,
 
 	global_bind_group:   wgpu.BindGroup,
+	microui_bind_group:   wgpu.BindGroup,
+
 	global_layout_group: wgpu.BindGroupLayout,
+	microui_layout_group: wgpu.BindGroupLayout,
 
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
 	light_buffer: wgpu.Buffer,
 	instance_buffer: wgpu.Buffer,
+	microui_constant_buffer: wgpu.Buffer,
+	microui_vertex_buffer: wgpu.Buffer,
+	microui_texture_buffer: wgpu.Buffer,
+	microui_color_buffer: wgpu.Buffer,
+	microui_index_buffer: wgpu.Buffer,
 
 	depth_texture_view: wgpu.TextureView,
+	microui_atlas_texture_view: wgpu.TextureView,
+
+	microui_sampler: wgpu.Sampler,
+
+	microui_atlas_texture: wgpu.Texture,
+
+	microui_pipeline: wgpu.RenderPipeline,
+	microui_pipeline_layout: wgpu.PipelineLayout,
+
+	microui_ctx: ^mu.Context
 }
 
 RenderItem :: struct {
@@ -28,82 +48,49 @@ RenderItem :: struct {
 	should_use_instance: bool
 }
 
-renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.SurfaceConfiguration) -> Renderer {
+renderer_init :: proc(
+	device: wgpu.Device,
+	queue: wgpu.Queue,
+	s_config: ^wgpu.SurfaceConfiguration,
+	window: ^platform.Window,
+	microui_ctx: ^mu.Context
+) -> Renderer {
 	camera_buffer := renderer_create_camera_buffer(device)
 	palette_buffer := renderer_create_palette_buffer(device)
 	light_buffer := renderer_create_light_buffer(device)
-	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
 	instance_buffer := renderer_create_instance_buffer(device)
+	microui_constant_buffer := microui_create_constant_buffer(device)
+	microui_vertex_buffer := microui_create_vertex_buffer(device)
+	microui_texture_buffer := microui_create_tex_buffer(device)
+	microui_color_buffer := microui_create_color_buffer(device)
+	microui_index_buffer := microui_create_index_buffer(device)
 
-	layout_entries := [4]wgpu.BindGroupLayoutEntry {
-		{
-			binding = 0,
-			visibility = {.Vertex},
-			buffer = {
-				type = .Uniform,
-				hasDynamicOffset = false,
-				minBindingSize = size_of(linalg.Matrix4f32),
-			},
-		},
-		{
-			binding = 1,
-			visibility = {.Fragment},
-			buffer = {
-				type = .ReadOnlyStorage,
-				hasDynamicOffset = false,
-				minBindingSize = size_of(linalg.Vector4f32) * 256,
-			},
-		},
-		{
-			binding = 2,
-			visibility = {.Fragment},
-			buffer = {
-				type = .ReadOnlyStorage,
-				hasDynamicOffset = false,
-				minBindingSize = size_of(u32) * 4 + size_of(LightData) * 1024,
-			},
-		},
-		{
-			binding = 3,
-			visibility = {.Vertex},
-			buffer = {
-				type = .ReadOnlyStorage,
-				hasDynamicOffset = false,
-				minBindingSize = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
-			},
-		},
-	}
+	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
+	microui_atlas_texture_view, microui_atlas_texture, microui_sampler := microui_create_atlas_texture_view(device)
 
-
-	global_layout_group := wgpu.DeviceCreateBindGroupLayout(
+	global_bind_group, global_layout_group := renderer_create_global_bind_group(
 		device,
-		&{
-			entries = raw_data(layout_entries[:]),
-			entryCount = len(layout_entries),
-			label = "global bind group layout",
-		},
+		palette_buffer,
+		camera_buffer,
+		light_buffer,
+		instance_buffer,
+	)
+	microui_bind_group, microui_layout_group := microui_create_bind_group(
+		device,
+		microui_sampler,
+		microui_atlas_texture_view,
+		microui_constant_buffer,
 	)
 
-	group_entries := [4]wgpu.BindGroupEntry {
-		{binding = 0, buffer = camera_buffer, size = size_of(linalg.Matrix4f32)},
-		{binding = 1, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
-		{binding = 2, buffer = light_buffer, size = size_of(u32) * 4 + size_of(LightData) * 1024},
-		{binding = 3, buffer = instance_buffer, size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},
-	}
+	microui_pipeline, microui_pipeline_layout := microui_create_pipeline(device, &microui_layout_group)
 
-	global_bind_group := wgpu.DeviceCreateBindGroup(
-		device,
-		&{
-			layout = global_layout_group,
-			entries = raw_data(group_entries[:]),
-			entryCount = len(group_entries),
-			label = "global bind group",
-		},
-	)
+	microui_update_atlas_texture(queue, microui_atlas_texture)
+	microui_update_constant(queue, microui_constant_buffer, window)
 
 	return {
 		device = device,
 		queue = queue,
+		window = window,
 		use_wireframe = false,
 		global_bind_group = global_bind_group,
 		global_layout_group = global_layout_group,
@@ -112,19 +99,31 @@ renderer_init :: proc(device: wgpu.Device, queue: wgpu.Queue, s_config: ^wgpu.Su
 		depth_texture_view = depth_texture_view,
 		light_buffer = light_buffer,
 		instance_buffer = instance_buffer,
+
+		microui_vertex_buffer = microui_vertex_buffer,
+		microui_texture_buffer = microui_texture_buffer,
+		microui_color_buffer = microui_color_buffer,
+		microui_index_buffer = microui_index_buffer,
+		microui_constant_buffer = microui_constant_buffer,
+		microui_atlas_texture_view = microui_atlas_texture_view,
+		microui_sampler = microui_sampler,
+		microui_bind_group = microui_bind_group,
+		microui_layout_group = microui_layout_group,
+		microui_pipeline = microui_pipeline,
+		microui_pipeline_layout = microui_pipeline_layout,
+		microui_atlas_texture = microui_atlas_texture,
+		microui_ctx = microui_ctx,
 	}
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
-	transforms := renderer_get_instancing_items(items)
-	renderer_update_instance_buffer(r, transforms)
-
 	encoder := wgpu.DeviceCreateCommandEncoder(r.device, nil)
 	defer wgpu.CommandEncoderRelease(encoder)
 
 	render_pass_encoder := wgpu.CommandEncoderBeginRenderPass(
 		encoder,
 		&{
+			label = "game render encoder",
 			colorAttachmentCount = 1,
 			colorAttachments = &wgpu.RenderPassColorAttachment {
 				view = target_view,
@@ -143,34 +142,9 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 		},
 	)
 
-	wgpu.RenderPassEncoderSetBindGroup(render_pass_encoder, 0, r.global_bind_group)
-
-	for item, i in items {
-		wgpu.RenderPassEncoderSetPipeline(render_pass_encoder, item.material.pipeline)
-		wgpu.RenderPassEncoderSetVertexBuffer(
-			render_pass_encoder,
-			0,
-			item.mesh.vertex_buffer,
-			0,
-			u64(size_of(Vertex) * item.mesh.vertex_count),
-		)
-		wgpu.RenderPassEncoderSetIndexBuffer(
-			render_pass_encoder,
-			item.mesh.index_buffer,
-			.Uint16,
-			0,
-			u64(size_of(u16) * item.mesh.index_count),
-		)
-		wgpu.RenderPassEncoderDrawIndexed(
-			render_pass_encoder,
-			indexCount = item.mesh.index_count,
-			instanceCount = 1,
-			firstIndex = 0,
-			baseVertex = 0,
-			firstInstance = u32(i),
-		)
-	}
-
+	renderer_draw_game(r, render_pass_encoder, items)
+	renderer_draw_microui(r, render_pass_encoder)
+	
 	wgpu.RenderPassEncoderEnd(render_pass_encoder)
 	wgpu.RenderPassEncoderRelease(render_pass_encoder)
 
@@ -180,8 +154,66 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 	wgpu.QueueSubmit(r.queue, {command_buffer})
 }
 
+@(private="file")
+renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items: []RenderItem) {
+	transforms := renderer_get_instancing_items(items)
+	renderer_update_instance_buffer(r, transforms)
+
+	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.global_bind_group)
+
+	for item, i in items {
+		wgpu.RenderPassEncoderSetPipeline(encoder, item.material.pipeline)
+		wgpu.RenderPassEncoderSetVertexBuffer(
+			encoder,
+			0,
+			item.mesh.vertex_buffer,
+			0,
+			u64(size_of(Vertex) * item.mesh.vertex_count),
+		)
+		wgpu.RenderPassEncoderSetIndexBuffer(
+			encoder,
+			item.mesh.index_buffer,
+			.Uint16,
+			0,
+			u64(size_of(u16) * item.mesh.index_count),
+		)
+		wgpu.RenderPassEncoderDrawIndexed(
+			encoder,
+			indexCount = item.mesh.index_count,
+			instanceCount = 1,
+			firstIndex = 0,
+			baseVertex = 0,
+			firstInstance = u32(i),
+		)
+	}
+}
+
+@(private="file")
+renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
+	wgpu.RenderPassEncoderSetPipeline(encoder, r.microui_pipeline)
+	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.microui_bind_group)
+	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 0, r.microui_vertex_buffer, 0, size_of(microui_state.vert_buf))
+	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 1, r.microui_texture_buffer, 0, size_of(microui_state.tex_buf))
+	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 2, r.microui_color_buffer, 0, size_of(microui_state.color_buf))
+	wgpu.RenderPassEncoderSetIndexBuffer(encoder, r.microui_index_buffer, .Uint32, 0, size_of(microui_state.index_buf))
+
+	microui_render(encoder, r.window, r.microui_ctx)
+
+	wgpu.QueueWriteBuffer(r.queue, r.microui_vertex_buffer, 0, &microui_state.vert_buf, uint(microui_state.buf_idx*8*size_of(f32)))
+	wgpu.QueueWriteBuffer(r.queue, r.microui_texture_buffer, 0, &microui_state.tex_buf, uint(microui_state.buf_idx*8*size_of(f32)))
+	wgpu.QueueWriteBuffer(r.queue, r.microui_color_buffer, 0, &microui_state.color_buf, uint(microui_state.buf_idx*16))
+	wgpu.QueueWriteBuffer(r.queue, r.microui_index_buffer, 0, &microui_state.index_buf, uint(microui_state.buf_idx*6*size_of(u32)))
+
+	if microui_state.buf_idx == 0 { return }
+	wgpu.RenderPassEncoderDrawIndexed(encoder, u32(microui_state.buf_idx * 6), 1, 0, 0, 0)
+
+	microui_state.buf_idx = 0
+}
+
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 	r.depth_texture_view = renderer_create_depth_texture_view(r.device, s_config)
+
+	microui_update_constant(r.queue, r.microui_constant_buffer, r.window)
 }
 
 renderer_destroy :: proc(r: ^Renderer) {
@@ -189,12 +221,28 @@ renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.BufferRelease(r.palette_buffer)
 	wgpu.BufferRelease(r.light_buffer)
 	wgpu.BufferRelease(r.instance_buffer)
+	wgpu.BufferRelease(r.microui_constant_buffer)
+	wgpu.BufferRelease(r.microui_texture_buffer)
+	wgpu.BufferRelease(r.microui_texture_buffer)
+	wgpu.BufferRelease(r.microui_color_buffer)
+	wgpu.BufferRelease(r.microui_index_buffer)
 
 	wgpu.TextureViewRelease(r.depth_texture_view)
+	wgpu.TextureViewRelease(r.microui_atlas_texture_view)
 
 	wgpu.BindGroupRelease(r.global_bind_group)
+	wgpu.BindGroupRelease(r.microui_bind_group)
 	wgpu.BindGroupLayoutRelease(r.global_layout_group)
+	wgpu.BindGroupLayoutRelease(r.microui_layout_group)
+
+	wgpu.SamplerRelease(r.microui_sampler)
+
+	wgpu.RenderPipelineRelease(r.microui_pipeline)
+	wgpu.PipelineLayoutRelease(r.microui_pipeline_layout)
+
+	wgpu.TextureRelease(r.microui_atlas_texture)
 
 	wgpu.DeviceRelease(r.device)
+
 	wgpu.QueueRelease(r.queue)
 }

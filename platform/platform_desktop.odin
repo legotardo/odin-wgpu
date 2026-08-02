@@ -54,6 +54,16 @@ prepare_context :: proc(window: ^Window) {
 	glfw.SetWindowUserPointer(window.handle, window)
 }
 
+toggle_cursor :: proc(window: ^Window) {
+	current_mode := glfw.GetInputMode(window.handle, glfw.CURSOR)
+
+	if (current_mode == glfw.CURSOR_DISABLED) {
+		glfw.SetInputMode(window.handle, glfw.CURSOR, glfw.CURSOR_NORMAL)
+	} else {
+		glfw.SetInputMode(window.handle, glfw.CURSOR, glfw.CURSOR_DISABLED)
+	}
+}
+
 should_close :: proc(window: ^Window) -> bool {
 	return glfw.WindowShouldClose(window.handle) == true || window.terminate
 }
@@ -79,6 +89,11 @@ get_frame_size :: proc(window: ^Window) -> (width, height: u32) {
 	iw, ih := glfw.GetFramebufferSize(window.handle)
 
 	return u32(iw), u32(ih)
+}
+
+get_dpi :: proc(window: ^Window) -> f32 {
+	sw, sh := glfw.GetWindowContentScale(window.handle)
+	return sw
 }
 
 run :: proc(window: ^Window, update_callback: WindowUpdate, finish_callback: WindowFinish) {
@@ -135,6 +150,8 @@ key_from_glfw :: proc(key: c.int) -> input.Key {
 		return .F
 	case glfw.KEY_SPACE:
 		return .Space
+	case glfw.KEY_LEFT_ALT:
+		return .LeftAlt
 	case glfw.KEY_LEFT_SHIFT:
 		return .LeftShift
 	case glfw.KEY_ESCAPE:

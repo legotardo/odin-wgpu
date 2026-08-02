@@ -45,6 +45,7 @@ material_create :: proc(
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		r.device,
 		&{
+			label = "material render pipeline",
 			layout = pipeline_layout,
 			vertex = {
 				module = shader_module,

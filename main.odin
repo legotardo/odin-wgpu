@@ -22,5 +22,5 @@ main :: proc() {
 	state.ctx = context
 
 	state.window = platform.create_window()
-	wgpu_initialize(&state.window)
+	wgpu_init(&state.window)
 }
