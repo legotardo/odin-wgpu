@@ -113,7 +113,8 @@ update :: proc(dt: f32) {
 	game.game_update(&state.game_state, dt)
 
 	cam_matrix := game.game_get_camera_matrix(&state.game_state)
-	renderer.renderer_update_camera_buffer(&state.renderer, cam_matrix)
+	cam_pos := game.game_get_camera_eye(&state.game_state)
+	renderer.renderer_update_camera_buffer(&state.renderer, { view_proj = cam_matrix, position = cam_pos })
 
 	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)

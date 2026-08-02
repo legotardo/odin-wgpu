@@ -169,7 +169,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 
 	input.input_update(&state.input)
 
-	microui_update(state)
+	microui_update(state, dt)
 }
 
 game_destroy :: proc(state: ^GameState) {

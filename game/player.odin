@@ -36,6 +36,8 @@ spawn_player :: proc(state: ^GameState) {
 			znear = 0.1,
 		},
 	)
+
+	ecs.entity_disable_components(state.world, player, {.PhysicsComponent})
 }
 
 system_update_player :: proc(state: ^GameState, dt: f32) {

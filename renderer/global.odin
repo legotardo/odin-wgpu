@@ -14,11 +14,11 @@ renderer_create_global_bind_group :: proc(
     layout_entries := [4]wgpu.BindGroupLayoutEntry {
 		{
 			binding = 0,
-			visibility = {.Vertex},
+			visibility = {.Vertex, .Fragment},
 			buffer = {
 				type = .Uniform,
 				hasDynamicOffset = false,
-				minBindingSize = size_of(linalg.Matrix4f32),
+				minBindingSize = size_of(CameraUniform),
 			},
 		},
 		{
@@ -61,7 +61,7 @@ renderer_create_global_bind_group :: proc(
 	)
 
 	group_entries := [4]wgpu.BindGroupEntry {
-		{binding = 0, buffer = camera_buffer, size = size_of(linalg.Matrix4f32)},
+		{binding = 0, buffer = camera_buffer, size = size_of(CameraUniform)},
 		{binding = 1, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
 		{binding = 2, buffer = light_buffer, size = size_of(u32) * 4 + size_of(LightData) * 1024},
 		{binding = 3, buffer = instance_buffer, size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},

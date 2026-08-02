@@ -1,5 +1,7 @@
 struct CameraUniform {
     view_proj: mat4x4<f32>,
+    position: vec3<f32>,
+    _pad: f32,
 }
 
 struct PaletteUniform {
@@ -117,5 +119,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //     base_color = vec4<f32>(0.5, 1.0, 0.5, 1.0);
     // }
 
-    return vec4<f32>(base_color.rgb * in.ao, base_color.a);
+    var final_color = vec3<f32>(base_color.rgb * in.ao);
+
+    let dist = length(camera.position - in.world_position);
+    let fog_start = 30.0;
+    let fog_end = 50.0;
+    let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
+    let fog_color = vec3<f32>(0.45, 0.68, 0.87);
+
+    final_color = mix(fog_color, final_color, fog_factor);
+
+    return vec4<f32>(final_color, base_color.a);
 }

@@ -5,13 +5,19 @@ import "vendor:wgpu"
 import "../constants"
 
 // // // CAMERA
+CameraUniform :: struct {
+	view_proj: linalg.Matrix4f32,
+	position: linalg.Vector3f32,
+	_pad: f32,
+}
+
 renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
 	buffer := wgpu.DeviceCreateBuffer(
 		device,
 		&{
 			label = "camera buffer",
 			usage = {.Uniform, .CopyDst},
-			size = size_of(linalg.Matrix4f32),
+			size = size_of(CameraUniform),
 		},
 	)
 
@@ -20,10 +26,10 @@ renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
 
 renderer_update_camera_buffer :: proc(
 	r: ^Renderer,
-	view_proj: linalg.Matrix4f32,
+	uniform: CameraUniform,
 ) {
-	mat := view_proj
-	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(mat))
+	mat := uniform
+	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(CameraUniform))
 }
 // // // CAMERA
 
