@@ -109,22 +109,29 @@ chunk_generate_task :: proc(t: thread.Task) {
 	scale: f32 = 0.05
 	amplitude: f32 = 3.0
 
+	chunk_block_x := int(math.round(data.chunk_pos.x / constants.BLOCK_SIZE))
+	chunk_block_y := int(math.round(data.chunk_pos.y / constants.BLOCK_SIZE))
+	chunk_block_z := int(math.round(data.chunk_pos.z / constants.BLOCK_SIZE))
+
 	for z in 0 ..< constants.CHUNK_SIZE {
 		for x in 0 ..< constants.CHUNK_SIZE {
-			world_x := data.chunk_pos.x + f32(x)
-			world_z := data.chunk_pos.z + f32(z)
+			world_x := data.chunk_pos.x + (f32(x) * constants.BLOCK_SIZE)
+			world_z := data.chunk_pos.z + (f32(z) * constants.BLOCK_SIZE)
 
 			noise_val := noise.noise_2d(seed, {f64(world_x * scale), f64(world_z * scale)})
-			surface_y := int((noise_val + 1.0) * 0.5 * amplitude)
+			
+			surface_world_y := (f32(noise_val) + 1.0) * 0.5 * amplitude
+			
+			surface_block_y := int(math.round(surface_world_y / constants.BLOCK_SIZE))
 
 			for y in 0 ..< constants.CHUNK_SIZE {
-				world_y := int(data.chunk_pos.y) + y
+				world_block_y := chunk_block_y + y
 
-				if world_y < surface_y - 3 {
+				if world_block_y < surface_block_y - 3 {
 					chunk_set_block(data.chunk, x, y, z, 1)
-				} else if world_y < surface_y {
+				} else if world_block_y < surface_block_y {
 					chunk_set_block(data.chunk, x, y, z, 2)
-				} else if world_y == surface_y {
+				} else if world_block_y == surface_block_y {
 					chunk_set_block(data.chunk, x, y, z, 3)
 				}
 			}
