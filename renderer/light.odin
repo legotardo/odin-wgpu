@@ -4,15 +4,14 @@ import "core:math/linalg"
 
 LightType :: enum u32 {
 	Point = 0,
+	Directional = 1,
 }
 
 LightData :: struct {
-	position:  linalg.Vector3f32,
+	position:   linalg.Vector3f32,
 	light_type: u32,
-	color:     linalg.Vector3f32,
-	intensity: f32,
-	range:     f32,
-	_pad1:     f32,
-	_pad2:     f32,
-	_pad3:     f32,
+	direction:  linalg.Vector3f32,
+	intensity:  f32,
+	color:      linalg.Vector3f32,
+	range:      f32,
 }

@@ -9,19 +9,17 @@ struct PaletteUniform {
 struct Light {
     position: vec3<f32>,
     light_type: u32,
-    color: vec3<f32>,
+
+    direction: vec3<f32>,
     intensity: f32,
+
+    color: vec3<f32>,
     range: f32,
-    _pad1: f32,
-    _pad2: f32,
-    _pad3: f32,
 }
 
 struct LightBuffer {
     light_count: u32,
-    _pad1: u32,
-    _pad2: u32,
-    _pad3: u32,
+    _pad: vec3<u32>,
     lights: array<Light>,
 }
 

@@ -104,46 +104,41 @@ game_awake :: proc(state: ^GameState) {
 	// 	{mesh = string(quad_mesh), material = string(minimal_material)},
 	// )
 
-	light := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, light, {position = {5, 5, 5}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
-	ecs.entity_add_light(
-		state.world,
-		light,
-		{
-			color = {1, 1, 1},
-			intensity = 1,
-			light_type = .Point,
-			range = 20,
-		},
-	)
-	ecs.entity_add_render(
-		state.world,
-		light,
-		{mesh = string(quad_mesh), material = string(default_material)},
-	)
+	// light := ecs.entity_create(state.world)
+	// ecs.entity_add_transform(state.world, light, {position = {5, 2, 5}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
+	// ecs.entity_add_light(
+	// 	state.world,
+	// 	light,
+	// 	{
+	// 		color = {1, 1, 1},
+	// 		intensity = 10,
+	// 		light_type = .Point,
+	// 		range = 200,
+	// 	},
+	// )
+	// ecs.entity_add_render(
+	// 	state.world,
+	// 	light,
+	// 	{mesh = string(quad_mesh), material = string(default_material)},
+	// )
 
-	light2 := ecs.entity_create(state.world)
-	ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
-	ecs.entity_add_light(
-		state.world,
-		light2,
-		{
-			color = {1, 0, 1},
-			intensity = 1,
-			light_type = .Point,
-			range = 20,
-		},
-	)
-	ecs.entity_add_render(
-		state.world,
-		light,
-		{mesh = string(quad_mesh), material = string(default_material)},
-	)
-	ecs.entity_add_render(
-		state.world,
-		light2,
-		{mesh = string(quad_mesh), material = string(default_material)},
-	)
+	// light2 := ecs.entity_create(state.world)
+	// ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
+	// ecs.entity_add_light(
+	// 	state.world,
+	// 	light2,
+	// 	{
+	// 		color = {1, 1, 1},
+	// 		intensity = 10,
+	// 		light_type = .Directional,
+	// 		direction = {0, -1, 0}
+	// 	},
+	// )
+	// ecs.entity_add_render(
+	// 	state.world,
+	// 	light2,
+	// 	{mesh = string(quad_mesh), material = string(default_material)},
+	// )
 	
 	spawn_world_chunks(state)
 }
@@ -155,6 +150,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	system_generate_chunk(state)
 	system_generate_chunk_mesh(state)
 	system_update_lights(state)
+	system_resolve_thread_tasks(state)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
 		state.renderer.use_wireframe = !state.renderer.use_wireframe

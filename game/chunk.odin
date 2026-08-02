@@ -1,23 +1,25 @@
 package game
 
+import "core:math/noise"
 import "core:math/linalg"
 import "core:thread"
-import "core:fmt"
 import "../constants"
 import "../ecs"
 import "../renderer"
 
 spawn_world_chunks :: proc(state: ^GameState) {
-	for z in 0..< constants.WORLD_SIZE {
-		for x in 0..< constants.WORLD_SIZE {
-			chunk := ecs.entity_create(state.world)
-			ecs.entity_add_transform(state.world, chunk, {
-				position = { f32(x * constants.CHUNK_SIZE), 0, f32(z * constants.CHUNK_SIZE) },
-				scale = { 1, 1, 1 }
-			})
-			ecs.entity_add_chunk(state.world, chunk, {})
+	// for y in 0 ..< 4 {
+		for z in 0..< constants.WORLD_SIZE {
+			for x in 0..< constants.WORLD_SIZE {
+				chunk := ecs.entity_create(state.world)
+				ecs.entity_add_transform(state.world, chunk, {
+					position = { f32(x * constants.CHUNK_SIZE), 0, f32(z * constants.CHUNK_SIZE) },
+					scale = { 1, 1, 1 }
+				})
+				ecs.entity_add_chunk(state.world, chunk, {})
+			}
 		}
-	}
+	// }
 }
 
 system_generate_chunk :: proc(state: ^GameState) {
@@ -27,25 +29,18 @@ system_generate_chunk :: proc(state: ^GameState) {
 		if (state.world.masks[i] & mask) != mask do continue
 
 		chunk := &state.world.chunks[i]
+		t := &state.world.transforms[i]
 
-		if chunk.is_generated do continue
+		if !chunk.is_generated && !chunk.is_generating {
+			chunk.is_generating = true
 
-		for z in 0 ..< constants.CHUNK_SIZE {
-			for y in 0 ..< constants.CHUNK_SIZE {
-				for x in 0 ..< constants.CHUNK_SIZE {
-					if y == 0 {
-						chunk_set_block(chunk, x, y, z, 1)
-					} else if y < 3 && (x % 4 == 0 || z % 5 == 0) {
-						chunk_set_block(chunk, x, y, z, 2)
-					} else {
-						chunk_set_block(chunk, x, y, z, 0)
-					}
-				}
-			}
+			task_data := new(ChunkGenTaskData)
+			task_data.chunk = chunk
+			task_data.chunk_pos = t.position
+			task_data.entity_index = i
+
+			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_task, task_data, 0)
 		}
-
-		chunk.is_generated = true
-		chunk.is_dirty = true
 	}
 }
 
@@ -97,29 +92,39 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
 		}
 	}
+}
 
-	for thread.pool_num_done(state.thread_pool) > 0 {
-		task, ok := thread.pool_pop_done(state.thread_pool)
-		if !ok do continue
-		data := cast(^ChunkTaskData)task.data
+chunk_generate_task :: proc(t: thread.Task) {
+	data := cast(^ChunkGenTaskData)t.data
 
-		if len(data.vertices) > 0 {
-			mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
-			mesh_handle := assets_register_mesh(&state.assets, fmt.aprintf("chunk_%f_%f_%f", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z), mesh)
+	if len(data.chunk.palette) == 0 {
+		append(&data.chunk.palette, 0)
+	}
 
-			ecs.entity_add_render(state.world, state.world.entities[data.entity_index], {
-				mesh = string(mesh_handle),
-				material = "chunk",
-				ignore_instancing = true,
-			})
+	seed: i64 = 12345
+	scale: f32 = 0.05
+	amplitude: f32 = 3.0
+
+	for z in 0 ..< constants.CHUNK_SIZE {
+		for x in 0 ..< constants.CHUNK_SIZE {
+			world_x := data.chunk_pos.x + f32(x)
+			world_z := data.chunk_pos.z + f32(z)
+
+			noise_val := noise.noise_2d(seed, {f64(world_x * scale), f64(world_z * scale)})
+			surface_y := int((noise_val + 1.0) * 0.5 * amplitude)
+
+			for y in 0 ..< constants.CHUNK_SIZE {
+				world_y := int(data.chunk_pos.y) + y
+
+				if world_y < surface_y - 3 {
+					chunk_set_block(data.chunk, x, y, z, 1)
+				} else if world_y < surface_y {
+					chunk_set_block(data.chunk, x, y, z, 2)
+				} else if world_y == surface_y {
+					chunk_set_block(data.chunk, x, y, z, 3)
+				}
+			}
 		}
-
-		data.chunk.is_dirty = false
-		data.chunk.is_meshing = false
-
-		delete(data.vertices)
-		delete(data.indices)
-		free(data)
 	}
 }
 

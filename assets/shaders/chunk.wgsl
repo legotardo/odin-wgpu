@@ -9,19 +9,17 @@ struct PaletteUniform {
 struct Light {
     position: vec3<f32>,
     light_type: u32,
-    color: vec3<f32>,
+
+    direction: vec3<f32>,
     intensity: f32,
+
+    color: vec3<f32>,
     range: f32,
-    _pad1: f32,
-    _pad2: f32,
-    _pad3: f32,
 }
 
 struct LightBuffer {
     light_count: u32,
-    _pad1: u32,
-    _pad2: u32,
-    _pad3: u32,
+    _pad: vec3<u32>,
     lights: array<Light>,
 }
 
@@ -74,20 +72,31 @@ fn calculate_normal(normal_id: u32) -> vec3<f32> {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal = calculate_normal(in.normal_id);
     let base_color = palette.color[in.material_id];
-    var final_light = vec3<f32>(0.2);
+    var final_light = vec3<f32>(0.05);
 
     for (var i: u32 = 0u; i < light_data.light_count; i += 1u) {
         let light = light_data.lights[i];
+        var L: vec3<f32>;
+        var attenuation = 1.0;
 
-        let light_dir = light.position - in.world_position;
-        let dist = length(light_dir);
+        if (light.light_type == 0u) {
+            let light_vec = light.position - in.world_position;
+            let dist = length(light_vec);
 
-        if (dist < light.range) {
-            let attenuation = 1.0 - (dist / light.range);
-            let n_dot_l = max(dot(normal, normalize(light_dir)), 0.0);
+            if (dist >= light.range) {
+                continue;
+            }
 
-            final_light += light.color * light.intensity * n_dot_l * attenuation;
+            L = normalize(light_vec);
+            attenuation = pow(max(1.0 - dist / light.range, 0.0), 2.0);
+        } else {
+            L = normalize(light.direction);
         }
+
+        let diffuse = max(dot(normal, L), 0.0);
+
+        final_light += light.color * 1 * diffuse * attenuation;
+        // return vec4(vec3(diffuse), 1.0);
     }
 
     // test normals
@@ -105,5 +114,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //     base_color = vec4<f32>(0.5, 1.0, 0.5, 1.0);
     // }
 
-    return vec4<f32>(base_color.rgb * final_light, base_color.a);
+    return vec4<f32>(base_color.rgb, base_color.a);
 }

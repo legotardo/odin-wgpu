@@ -1,5 +1,7 @@
 package game
 
+import "core:fmt"
+import "core:math/linalg"
 import "../ecs"
 import "../renderer"
 
@@ -17,6 +19,7 @@ system_update_lights :: proc(state: ^GameState) {
         append(&gpu_lights, renderer.LightData{
             position = t.position,
             light_type = u32(l.light_type),
+            direction = l.direction,
             color = l.color,
             intensity = l.intensity,
             range = l.range,
@@ -25,4 +28,3 @@ system_update_lights :: proc(state: ^GameState) {
 
     renderer.renderer_update_light_buffer(state.renderer, gpu_lights[:])
 }
-

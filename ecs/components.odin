@@ -1,6 +1,5 @@
 package ecs
 
-import "../constants"
 import "../renderer"
 import "core:math/linalg"
 
@@ -39,6 +38,8 @@ ChunkComponent :: struct {
 	bits_per_block: u8,
 
 	current_lod:  int,
+
+	is_generating: bool,
 	is_generated: bool,
 	is_dirty:     bool,
 	is_meshing:   bool,
@@ -48,6 +49,7 @@ ChunkComponent :: struct {
 LightComponent :: struct {
 	light_type: renderer.LightType,
 	color: linalg.Vector3f32,
+	direction: linalg.Vector3f32,
 	intensity: f32,
 	range:     f32,
 }
