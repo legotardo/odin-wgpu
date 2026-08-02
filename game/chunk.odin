@@ -199,20 +199,7 @@ generate_chunk_mesh :: proc(
 						check_pos := voxel_pos
 						check_pos[axis] += lod
 
-						side_l := chunk_get_block(chunk, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbors) != 0
-						side_r := chunk_get_block(chunk, check_pos[0] + u_dir[0], check_pos[1] + u_dir[1], check_pos[2] + u_dir[2], neighbors) != 0
-						side_b := chunk_get_block(chunk, check_pos[0] - v_dir[0], check_pos[1] - v_dir[1], check_pos[2] - v_dir[2], neighbors) != 0
-						side_t := chunk_get_block(chunk, check_pos[0] + v_dir[0], check_pos[1] + v_dir[1], check_pos[2] + v_dir[2], neighbors) != 0
-
-						corner_bl := chunk_get_block(chunk, check_pos[0] - u_dir[0] - v_dir[0], check_pos[1] - u_dir[1] - v_dir[1], check_pos[2] - u_dir[2] - v_dir[2], neighbors) != 0
-						corner_br := chunk_get_block(chunk, check_pos[0] + u_dir[0] - v_dir[0], check_pos[1] + u_dir[1] - v_dir[1], check_pos[2] + u_dir[2] - v_dir[2], neighbors) != 0
-						corner_tr := chunk_get_block(chunk, check_pos[0] + u_dir[0] + v_dir[0], check_pos[1] + u_dir[1] + v_dir[1], check_pos[2] + u_dir[2] + v_dir[2], neighbors) != 0
-						corner_tl := chunk_get_block(chunk, check_pos[0] - u_dir[0] + v_dir[0], check_pos[1] - u_dir[1] + v_dir[1], check_pos[2] - u_dir[2] + v_dir[2], neighbors) != 0
-
-						ao_bl := vertex_ao(side_l, side_b, corner_bl)
-						ao_br := vertex_ao(side_r, side_b, corner_br)
-						ao_tr := vertex_ao(side_r, side_t, corner_tr)
-						ao_tl := vertex_ao(side_l, side_t, corner_tl)
+						ao_bl, ao_br, ao_tr, ao_tl := sample_face_ao(chunk, check_pos, u_dir, v_dir, neighbors)
 
 						mask[mask_idx] = MaskData{block = i16(block_current), ao = {ao_bl, ao_br, ao_tr, ao_tl}}
 
@@ -223,20 +210,7 @@ generate_chunk_mesh :: proc(
 						
 						check_pos := voxel_pos
 						
-						side_l := chunk_get_block(chunk, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbors) != 0
-						side_r := chunk_get_block(chunk, check_pos[0] + u_dir[0], check_pos[1] + u_dir[1], check_pos[2] + u_dir[2], neighbors) != 0
-						side_b := chunk_get_block(chunk, check_pos[0] - v_dir[0], check_pos[1] - v_dir[1], check_pos[2] - v_dir[2], neighbors) != 0
-						side_t := chunk_get_block(chunk, check_pos[0] + v_dir[0], check_pos[1] + v_dir[1], check_pos[2] + v_dir[2], neighbors) != 0
-
-						corner_bl := chunk_get_block(chunk, check_pos[0] - u_dir[0] - v_dir[0], check_pos[1] - u_dir[1] - v_dir[1], check_pos[2] - u_dir[2] - v_dir[2], neighbors) != 0
-						corner_br := chunk_get_block(chunk, check_pos[0] + u_dir[0] - v_dir[0], check_pos[1] + u_dir[1] - v_dir[1], check_pos[2] + u_dir[2] - v_dir[2], neighbors) != 0
-						corner_tr := chunk_get_block(chunk, check_pos[0] + u_dir[0] + v_dir[0], check_pos[1] + u_dir[1] + v_dir[1], check_pos[2] + u_dir[2] + v_dir[2], neighbors) != 0
-						corner_tl := chunk_get_block(chunk, check_pos[0] - u_dir[0] + v_dir[0], check_pos[1] - u_dir[1] + v_dir[1], check_pos[2] - u_dir[2] + v_dir[2], neighbors) != 0
-
-						ao_bl := vertex_ao(side_l, side_b, corner_bl)
-						ao_br := vertex_ao(side_r, side_b, corner_br)
-						ao_tr := vertex_ao(side_r, side_t, corner_tr)
-						ao_tl := vertex_ao(side_l, side_t, corner_tl)
+						ao_bl, ao_br, ao_tr, ao_tl := sample_face_ao(chunk, check_pos, u_dir, v_dir, neighbors)
 
 						mask[mask_idx] = MaskData{block = -i16(block_neighbor), ao = {ao_bl, ao_br, ao_tr, ao_tl}}
 
@@ -519,4 +493,29 @@ vertex_ao :: proc(side1, side2, corner: bool) -> f32 {
 	if corner do s -= 0.25
 	
 	return s
+}
+
+@(private = "file")
+sample_face_ao :: proc(
+	chunk: ^ecs.ChunkComponent,
+	check_pos: [3]int,
+	u_dir, v_dir: [3]int,
+	neighbors: [6]^ecs.ChunkComponent,
+) -> (ao_bl, ao_br, ao_tr, ao_tl: f32) {
+	side_l := chunk_get_block(chunk, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbors) != 0
+	side_r := chunk_get_block(chunk, check_pos[0] + u_dir[0], check_pos[1] + u_dir[1], check_pos[2] + u_dir[2], neighbors) != 0
+	side_b := chunk_get_block(chunk, check_pos[0] - v_dir[0], check_pos[1] - v_dir[1], check_pos[2] - v_dir[2], neighbors) != 0
+	side_t := chunk_get_block(chunk, check_pos[0] + v_dir[0], check_pos[1] + v_dir[1], check_pos[2] + v_dir[2], neighbors) != 0
+
+	corner_bl := chunk_get_block(chunk, check_pos[0] - u_dir[0] - v_dir[0], check_pos[1] - u_dir[1] - v_dir[1], check_pos[2] - u_dir[2] - v_dir[2], neighbors) != 0
+	corner_br := chunk_get_block(chunk, check_pos[0] + u_dir[0] - v_dir[0], check_pos[1] + u_dir[1] - v_dir[1], check_pos[2] + u_dir[2] - v_dir[2], neighbors) != 0
+	corner_tr := chunk_get_block(chunk, check_pos[0] + u_dir[0] + v_dir[0], check_pos[1] + u_dir[1] + v_dir[1], check_pos[2] + u_dir[2] + v_dir[2], neighbors) != 0
+	corner_tl := chunk_get_block(chunk, check_pos[0] - u_dir[0] + v_dir[0], check_pos[1] - u_dir[1] + v_dir[1], check_pos[2] - u_dir[2] + v_dir[2], neighbors) != 0
+
+	ao_bl = vertex_ao(side_l, side_b, corner_bl)
+	ao_br = vertex_ao(side_r, side_b, corner_br)
+	ao_tr = vertex_ao(side_r, side_t, corner_tr)
+	ao_tl = vertex_ao(side_l, side_t, corner_tl)
+
+	return
 }
