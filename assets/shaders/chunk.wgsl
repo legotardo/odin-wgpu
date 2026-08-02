@@ -31,6 +31,7 @@ struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) material_id: u32,
     @location(2) normal_id: u32,
+    @location(3) ao: f32,
 };
 
 struct VertexOutput {
@@ -39,6 +40,7 @@ struct VertexOutput {
     @location(1) material_id: u32,
     @location(2) normal_id: u32,
     @location(3) world_position: vec3<f32>,
+    @location(4) ao: f32,
 };
 
 @vertex
@@ -51,6 +53,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.material_id = in.material_id;
     out.normal_id = in.normal_id;
     out.world_position = world_pos.xyz;
+    out.ao = in.ao;
 
     return out;
 }
@@ -74,30 +77,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let base_color = palette.color[in.material_id];
     var final_light = vec3<f32>(0.05);
 
-    for (var i: u32 = 0u; i < light_data.light_count; i += 1u) {
-        let light = light_data.lights[i];
-        var L: vec3<f32>;
-        var attenuation = 1.0;
+    // for (var i: u32 = 0u; i < light_data.light_count; i += 1u) {
+    //     let light = light_data.lights[i];
+    //     var L: vec3<f32>;
+    //     var attenuation = 1.0;
 
-        if (light.light_type == 0u) {
-            let light_vec = light.position - in.world_position;
-            let dist = length(light_vec);
+    //     if (light.light_type == 0u) {
+    //         let light_vec = light.position - in.world_position;
+    //         let dist = length(light_vec);
 
-            if (dist >= light.range) {
-                continue;
-            }
+    //         if (dist >= light.range) {
+    //             continue;
+    //         }
 
-            L = normalize(light_vec);
-            attenuation = pow(max(1.0 - dist / light.range, 0.0), 2.0);
-        } else {
-            L = normalize(light.direction);
-        }
+    //         L = normalize(light_vec);
+    //         attenuation = pow(max(1.0 - dist / light.range, 0.0), 2.0);
+    //     } else {
+    //         L = normalize(light.direction);
+    //     }
 
-        let diffuse = max(dot(normal, L), 0.0);
+    //     let diffuse = max(dot(normal, L), 0.0);
 
-        final_light += light.color * 1 * diffuse * attenuation;
-        // return vec4(vec3(diffuse), 1.0);
-    }
+    //     final_light += light.color * 1 * diffuse * attenuation;
+    //     // return vec4(vec3(diffuse), 1.0);
+    // }
 
     // test normals
     // if in.normal_id == 0 {
@@ -114,5 +117,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //     base_color = vec4<f32>(0.5, 1.0, 0.5, 1.0);
     // }
 
-    return vec4<f32>(base_color.rgb, base_color.a);
+    return vec4<f32>(base_color.rgb * in.ao, base_color.a);
 }
