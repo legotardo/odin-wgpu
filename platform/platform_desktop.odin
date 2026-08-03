@@ -172,10 +172,6 @@ key_callback :: proc "c" (handle: glfw.WindowHandle, key, scancode, action, mods
 	if ptr.resize_callback != nil {
 		context = ptr.ctx
 
-		// if (key == glfw.KEY_ESCAPE) {
-		// 	ptr.terminate = true
-		// }
-
 		key := key_from_glfw(key)
 
 		ptr.key_callback(key, action == glfw.PRESS || action == glfw.REPEAT)

@@ -45,8 +45,6 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr, transform = m, should_use_instance = !r.ignore_instancing})
 	}
 
-	// fmt.printf("Items to render = %d\n", len(items))
-
 	return items[:]
 }
 

@@ -107,7 +107,7 @@ chunk_generate_task :: proc(t: thread.Task) {
 
 	seed: i64 = 12345
 	scale: f32 = 0.05
-	amplitude: f32 = 3.0
+	amplitude: f32 = 2.0
 
 	chunk_block_x := int(math.round(data.chunk_pos.x / constants.BLOCK_SIZE))
 	chunk_block_y := int(math.round(data.chunk_pos.y / constants.BLOCK_SIZE))

@@ -119,7 +119,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     //     base_color = vec4<f32>(0.5, 1.0, 0.5, 1.0);
     // }
 
-    var final_color = vec3<f32>(base_color.rgb * in.ao);
+    let shadow_strength = 0.6;
+    let shadow_floor = 0.35;
+    let ao_clamped = mix(1.0, shadow_floor, (1.0 - in.ao) * shadow_strength);
+
+    var final_color = vec3<f32>(base_color.rgb * ao_clamped);
 
     let dist = length(camera.position - in.world_position);
     let fog_start = 30.0;
