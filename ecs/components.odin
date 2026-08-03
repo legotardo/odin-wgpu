@@ -38,7 +38,7 @@ ChunkComponent :: struct {
 	packed_blocks: []u64,
 	bits_per_block: u8,
 
-	current_lod:  int,
+	current_lod:  i32,
 
 	is_generating: bool,
 	is_generated: bool,

@@ -9,17 +9,18 @@ import "../renderer"
 ChunkTaskData :: struct {
     chunk: ^ecs.ChunkComponent,
 	chunk_pos: linalg.Vector3f32,
-	entity_index: int,
+	entity_index: i32,
 	neighbors: [6]^ecs.ChunkComponent,
 	vertices: []renderer.Vertex,
 	indices: []u16,
-	lod: int,
+	lod: i32,
 }
 
 ChunkGenTaskData :: struct {
 	chunk: ^ecs.ChunkComponent,
 	chunk_pos: linalg.Vector3f32,
 	entity_index: int,
+	node_tree: rawptr,
 }
 
 system_resolve_thread_tasks :: proc(state: ^GameState) {

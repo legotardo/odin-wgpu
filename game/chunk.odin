@@ -7,6 +7,9 @@ import "core:thread"
 import "../constants"
 import "../ecs"
 import "../renderer"
+import "../libs/fast_noise"
+
+terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))
 
 spawn_world_chunks :: proc(state: ^GameState) {
 	for y in 0 ..< 4 {
@@ -15,9 +18,9 @@ spawn_world_chunks :: proc(state: ^GameState) {
 				chunk := ecs.entity_create(state.world)
 				ecs.entity_add_transform(state.world, chunk, {
 					position = { 
-						f32(x * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
-						f32(y * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
-						f32(z * constants.CHUNK_SIZE) * constants.BLOCK_SIZE 
+						f32(i32(x) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
+						f32(i32(y) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
+						f32(i32(z) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE 
 					},
 					scale = { 1, 1, 1 }
 				})
@@ -43,6 +46,7 @@ system_generate_chunk :: proc(state: ^GameState) {
 			task_data.chunk = chunk
 			task_data.chunk_pos = t.position
 			task_data.entity_index = i
+			task_data.node_tree = terrain_node
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_task, task_data, 0)
 		}
@@ -62,7 +66,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		
 		dist := linalg.distance(t.position, cam_pos)
 
-		desired_lod := 1
+		desired_lod: i32 = 1
 		if dist > 1024 {
 			desired_lod = 8
 		} else if dist > 512 {
@@ -82,7 +86,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			task_data := new(ChunkTaskData)
 			task_data.chunk = chunk
 			task_data.chunk_pos = t.position
-			task_data.entity_index = i
+			task_data.entity_index = i32(i)
 			task_data.lod = desired_lod
 
 			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
@@ -105,26 +109,38 @@ chunk_generate_task :: proc(t: thread.Task) {
 		append(&data.chunk.palette, 0)
 	}
 
-	seed: i64 = 12345
-	scale: f32 = 0.05
-	amplitude: f32 = 2.0
+	seed: i32 = 12345
 
-	chunk_block_x := int(math.round(data.chunk_pos.x / constants.BLOCK_SIZE))
-	chunk_block_y := int(math.round(data.chunk_pos.y / constants.BLOCK_SIZE))
-	chunk_block_z := int(math.round(data.chunk_pos.z / constants.BLOCK_SIZE))
+	chunk_size := constants.CHUNK_SIZE
+	block_size := constants.BLOCK_SIZE
+	noise_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	start_x := f32(math.round(data.chunk_pos.x / block_size))
+	start_z := f32(math.round(data.chunk_pos.z / block_size))
 
-	for z in 0 ..< constants.CHUNK_SIZE {
-		for x in 0 ..< constants.CHUNK_SIZE {
-			world_x := data.chunk_pos.x + (f32(x) * constants.BLOCK_SIZE)
-			world_z := data.chunk_pos.z + (f32(z) * constants.BLOCK_SIZE)
+	chunk_block_y := i32(math.round(data.chunk_pos.y / block_size))
 
-			noise_val := noise.noise_2d(seed, {f64(world_x * scale), f64(world_z * scale)})
-			
-			surface_world_y := (f32(noise_val) + 1.0) * 0.5 * amplitude
-			
-			surface_block_y := int(math.round(surface_world_y / constants.BLOCK_SIZE))
+	fast_noise.GenUniformGrid2D(
+		data.node_tree,
+		raw_data(noise_buffer),
+		start_x, start_z,
+		chunk_size, chunk_size,
+		1,
+		1,
+		seed,
+		nil
+	)
 
-			for y in 0 ..< constants.CHUNK_SIZE {
+	BASE_HEIGHT: f32 = 64.0
+	HEIGHT_AMPLITUDE: f32 = 48.0
+
+	for z in 0 ..< chunk_size {
+		for x in 0 ..< chunk_size {
+
+			terrain_height_raw := noise_buffer[z * chunk_size + x]
+			world_surface_y := BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE)
+			surface_block_y := i32(world_surface_y)
+
+			for y in 0 ..< chunk_size {
 				world_block_y := chunk_block_y + y
 
 				if world_block_y < surface_block_y - 3 {
@@ -163,7 +179,7 @@ generate_chunk_mesh :: proc(
 	chunk: ^ecs.ChunkComponent,
 	chunk_pos: linalg.Vector3f32,
 	neighbors: [6]^ecs.ChunkComponent,
-	lod: int,
+	lod: i32,
 ) -> ([]renderer.Vertex, []u16) {
 	vertices := make([dynamic]renderer.Vertex, context.temp_allocator)
 	indices := make([dynamic]u16, context.temp_allocator)
@@ -180,12 +196,12 @@ generate_chunk_mesh :: proc(
 		axis_u := (axis + 1) % 3
 		axis_v := (axis + 2) % 3
 
-		voxel_pos := [3]int{0, 0, 0}
-		neighbor_dir := [3]int{0, 0, 0}
+		voxel_pos := [3]i32{0, 0, 0}
+		neighbor_dir := [3]i32{0, 0, 0}
 		neighbor_dir[axis] = lod
 
 		for voxel_pos[axis] = -lod; voxel_pos[axis] < constants.CHUNK_SIZE; voxel_pos[axis] += lod {
-			mask_idx := 0
+			mask_idx: i32 = 0
 			
 			is_current_inside := voxel_pos[axis] >= 0
 			is_neighbor_inside := (voxel_pos[axis] + lod) < constants.CHUNK_SIZE
@@ -199,7 +215,7 @@ generate_chunk_mesh :: proc(
 					block_neighbor := chunk_get_block(chunk, voxel_pos[0] + neighbor_dir[0], voxel_pos[1] + neighbor_dir[1], voxel_pos[2] + neighbor_dir[2], neighbors)
 
 					if block_current != 0 && block_neighbor == 0 && is_current_inside {
-						u_dir, v_dir := [3]int{0,0,0}, [3]int{0,0,0}
+						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod
 						
@@ -211,7 +227,7 @@ generate_chunk_mesh :: proc(
 						mask[mask_idx] = MaskData{block = i16(block_current), ao = {ao_bl, ao_br, ao_tr, ao_tl}}
 
 					} else if block_current == 0 && block_neighbor != 0 && is_neighbor_inside {
-						u_dir, v_dir := [3]int{0,0,0}, [3]int{0,0,0}
+						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod
 						
@@ -229,19 +245,19 @@ generate_chunk_mesh :: proc(
 			}
 
 			mask_idx = 0
-			for row := 0; row < cs_lod; row += 1 {
-				for col := 0; col < cs_lod; {
+			for row: i32 = 0; row < cs_lod; row += 1 {
+				for col: i32 = 0; col < cs_lod; {
 					if mask[mask_idx].block != 0 {
 						current_mask := mask[mask_idx]
 
-						quad_width := 1
+						quad_width: i32 = 1
 						for col + quad_width < cs_lod && mask[mask_idx + quad_width] == current_mask {
 							quad_width += 1
 						}
 
-						quad_height := 1
+						quad_height: i32 = 1
 						outer: for row + quad_height < cs_lod {
-							for check_col := 0; check_col < quad_width; check_col += 1 {
+							for check_col: i32 = 0; check_col < quad_width; check_col += 1 {
 								if mask[mask_idx + check_col + quad_height * cs_lod] != current_mask {
 									break outer
 								}
@@ -249,12 +265,12 @@ generate_chunk_mesh :: proc(
 							quad_height += 1
 						}
 
-						delta_u := [3]int{0, 0, 0}
-						delta_v := [3]int{0, 0, 0}
+						delta_u := [3]i32{0, 0, 0}
+						delta_v := [3]i32{0, 0, 0}
 						delta_u[axis_u] = quad_width * lod
 						delta_v[axis_v] = quad_height * lod
 
-						quad_pos := [3]int{0, 0, 0}
+						quad_pos := [3]i32{0, 0, 0}
 						quad_pos[axis] = voxel_pos[axis]
 						quad_pos[axis_u] = col * lod
 						quad_pos[axis_v] = row * lod
@@ -312,8 +328,8 @@ generate_chunk_mesh :: proc(
 							append(&indices, idx, idx + 3, idx + 2)
 						}
 
-						for clear_y := 0; clear_y < quad_height; clear_y += 1 {
-							for clear_x := 0; clear_x < quad_width; clear_x += 1 {
+						for clear_y: i32 = 0; clear_y < quad_height; clear_y += 1 {
+							for clear_x: i32 = 0; clear_x < quad_width; clear_x += 1 {
 								mask[mask_idx + clear_x + clear_y * cs_lod].block = 0
 							}
 						}
@@ -332,12 +348,12 @@ generate_chunk_mesh :: proc(
 }
 
 @(private)
-chunk_get_index :: proc(x, y, z: int) -> int {
+chunk_get_index :: proc(x, y, z: i32) -> i32 {
 	return x + (y * constants.CHUNK_SIZE) + (z * constants.CHUNK_SIZE * constants.CHUNK_SIZE)
 }
 
 @(private = "file")
-chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, neighbors: [6]^ecs.ChunkComponent) -> ecs.Block {
+chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, neighbors: [6]^ecs.ChunkComponent) -> ecs.Block {
 	if x < 0 {
 		if neighbors[0] == nil do return 0
 		return chunk_get_block_local(neighbors[0], constants.CHUNK_SIZE + x, y, z)
@@ -361,7 +377,7 @@ chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, neighbors: [6]
 	return chunk_get_block_local(chunk, x, y, z)
 }
 
-chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.Block {
+chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -378,7 +394,7 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.B
 
 	idx := chunk_get_index(x, y, z)
 
-	blocks_per_u64 := 64 / int(chunk.bits_per_block)
+	blocks_per_u64 := 64 / i32(chunk.bits_per_block)
 	data_idx := idx / blocks_per_u64
 	bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
 
@@ -389,7 +405,7 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int) -> ecs.B
 }
 
 @(private = "file")
-chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, block: ecs.Block) {
+chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Block) {
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -416,7 +432,7 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: int, block: ecs.Blo
 
 	if chunk.bits_per_block > 0 {
 		idx := chunk_get_index(x, y, z)
-		blocks_per_u64 := 64 / int(chunk.bits_per_block)
+		blocks_per_u64 := 64 / i32(chunk.bits_per_block)
 		data_idx := idx / blocks_per_u64
 		bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
 
@@ -437,14 +453,14 @@ chunk_repack :: proc(chunk: ^ecs.ChunkComponent) {
 	old_data := chunk.packed_blocks
 
 	if new_bits > 0 {
-		blocks_per_u64 := 64 / int(new_bits)
+		blocks_per_u64 := 64 / i32(new_bits)
 		total_blocks := constants.CHUNK_SIZE_CUBED
 		data_len := (total_blocks + blocks_per_u64 - 1) / blocks_per_u64
 
 		chunk.packed_blocks = make([]u64, data_len)
 
 		if len(old_data) > 0 {
-			old_blocks_per_u64 := 64 / int(old_bits)
+			old_blocks_per_u64 := 64 / i32(old_bits)
 			old_mask := (u64(1) << uint(old_bits)) - 1
 			new_mask := (u64(1) << uint(new_bits)) - 1
 
@@ -506,8 +522,8 @@ vertex_ao :: proc(side1, side2, corner: bool) -> f32 {
 @(private = "file")
 sample_face_ao :: proc(
 	chunk: ^ecs.ChunkComponent,
-	check_pos: [3]int,
-	u_dir, v_dir: [3]int,
+	check_pos: [3]i32,
+	u_dir, v_dir: [3]i32,
 	neighbors: [6]^ecs.ChunkComponent,
 ) -> (ao_bl, ao_br, ao_tr, ao_tl: f32) {
 	side_l := chunk_get_block(chunk, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbors) != 0
@@ -540,20 +556,20 @@ world_get_block :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.
 	chunk := get_chunk_at(world, chunk_pos)
 	if chunk == nil do return 0
 
-	local_x := int(math.floor((world_pos.x - chunk_x) / constants.BLOCK_SIZE))
-	local_y := int(math.floor((world_pos.y - chunk_y) / constants.BLOCK_SIZE))
-	local_z := int(math.floor((world_pos.z - chunk_z) / constants.BLOCK_SIZE))
+	local_x := i32(math.floor((world_pos.x - chunk_x) / constants.BLOCK_SIZE))
+	local_y := i32(math.floor((world_pos.y - chunk_y) / constants.BLOCK_SIZE))
+	local_z := i32(math.floor((world_pos.z - chunk_z) / constants.BLOCK_SIZE))
 
 	return chunk_get_block_local(chunk, local_x, local_y, local_z)
 }
 
 world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
-	min_x := int(math.floor(aabb.min.x / constants.BLOCK_SIZE))
-	max_x := int(math.floor(aabb.max.x / constants.BLOCK_SIZE))
-	min_y := int(math.floor(aabb.min.y / constants.BLOCK_SIZE))
-	max_y := int(math.floor(aabb.max.y / constants.BLOCK_SIZE))
-	min_z := int(math.floor(aabb.min.z / constants.BLOCK_SIZE))
-	max_z := int(math.floor(aabb.max.z / constants.BLOCK_SIZE))
+	min_x := i32(math.floor(aabb.min.x / constants.BLOCK_SIZE))
+	max_x := i32(math.floor(aabb.max.x / constants.BLOCK_SIZE))
+	min_y := i32(math.floor(aabb.min.y / constants.BLOCK_SIZE))
+	max_y := i32(math.floor(aabb.max.y / constants.BLOCK_SIZE))
+	min_z := i32(math.floor(aabb.min.z / constants.BLOCK_SIZE))
+	max_z := i32(math.floor(aabb.max.z / constants.BLOCK_SIZE))
 
 	for y in min_y ..= max_y {
 		for z in min_z ..= max_z {

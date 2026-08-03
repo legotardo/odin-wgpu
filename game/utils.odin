@@ -25,7 +25,7 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		if is_chunk {
 			local_aabb = AABB{
 				min = {0, 0, 0},
-				max = {f32(constants.CHUNK_SIZE * constants.BLOCK_SIZE), f32(constants.CHUNK_SIZE * constants.BLOCK_SIZE), f32(constants.CHUNK_SIZE * constants.BLOCK_SIZE)}
+				max = {f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE}
 			}
 		} else {
 			local_aabb = AABB{
