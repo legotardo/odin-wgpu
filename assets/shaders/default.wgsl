@@ -34,15 +34,15 @@ struct InstanceBuffer {
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) material_id: u32,
-    @location(2) normal_id: u32,
+    @location(1) @interpolate(flat) material_id: u32,
+    @location(2) @interpolate(flat) normal_id: u32,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
-    @location(1) material_id: u32,
-    @location(2) normal_id: u32,
+    @location(1) @interpolate(flat) material_id: u32,
+    @location(2) @interpolate(flat) normal_id: u32,
     @location(3) world_position: vec3<f32>,
 };
 
