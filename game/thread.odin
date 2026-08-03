@@ -46,8 +46,7 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			if len(data.vertices) > 0 {
 				mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
-				text := fmt.aprintf("chunk_%f_%f_%f", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z)
-				mesh_handle := assets_register_mesh(&state.assets, text, mesh)
+				mesh_handle := assets_register_mesh(&state.assets, fmt.tprintf("chunk_%f_%f_%f", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z), mesh)
 
 				ecs.entity_add_render(state.world, state.world.entities[data.entity_index], {
 					mesh = string(mesh_handle),

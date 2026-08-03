@@ -197,7 +197,6 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 }
 
 chunk_generate_task :: proc(t: thread.Task) {
-	defer free_all(context.temp_allocator)
 	data := cast(^ChunkGenTaskData)t.data
 
 	if len(data.chunk.palette) == 0 {
@@ -225,7 +224,7 @@ chunk_generate_task :: proc(t: thread.Task) {
 		nil
 	)
 
-	BASE_HEIGHT: f32 = 64.0
+	BASE_HEIGHT: f32 = 60.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
 	blocks_placed: i32 = 0
 
@@ -256,7 +255,6 @@ chunk_generate_task :: proc(t: thread.Task) {
 }
 
 chunk_mesh_task :: proc(t: thread.Task) {
-	defer free_all(context.temp_allocator)
 	data := cast(^ChunkTaskData)t.data
 
 	temp_vertices, temp_indices := generate_chunk_mesh(
@@ -271,8 +269,6 @@ chunk_mesh_task :: proc(t: thread.Task) {
 
 	data.indices = make([]u16, len(temp_indices))
 	copy(data.indices, temp_indices)
-
-	free_all(context.temp_allocator)
 }
 
 @(private = "file")

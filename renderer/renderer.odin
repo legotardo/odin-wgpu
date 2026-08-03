@@ -117,6 +117,8 @@ renderer_init :: proc(
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
+	defer delete(items)
+
 	encoder := wgpu.DeviceCreateCommandEncoder(r.device, nil)
 	defer wgpu.CommandEncoderRelease(encoder)
 
@@ -158,6 +160,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items: []RenderItem) {
 	transforms := renderer_get_instancing_items(items)
 	renderer_update_instance_buffer(r, transforms)
+	delete(transforms)
 
 	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.global_bind_group)
 

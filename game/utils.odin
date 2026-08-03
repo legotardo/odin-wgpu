@@ -7,7 +7,7 @@ import "../renderer"
 import "../constants"
 
 game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
-	items := make([dynamic]renderer.RenderItem, context.temp_allocator)
+	items := make([dynamic]renderer.RenderItem)
 	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
 
 	cam_matrix := game_get_camera_matrix(state)

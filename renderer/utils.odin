@@ -166,7 +166,7 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
         }
     }
 
-    transforms := make([]linalg.Matrix4f32, count, context.temp_allocator)
+    transforms := make([]linalg.Matrix4f32, count)
 
     for item, i in items {
         if !item.should_use_instance {

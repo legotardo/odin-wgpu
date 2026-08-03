@@ -1,6 +1,5 @@
 package game
 
-import "core:fmt"
 import "core:math/linalg"
 import "../ecs"
 import "../renderer"
@@ -9,6 +8,7 @@ system_update_lights :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .LightComponent}
 
     gpu_lights := make([dynamic]renderer.LightData, context.temp_allocator)
+    defer delete(gpu_lights)
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) != mask do continue

@@ -131,7 +131,7 @@ update :: proc(dt: f32) {
 
 	wgpu.SurfacePresent(state.surface)
 
-	free_all(context.temp_allocator)
+	// free_all(context.temp_allocator)
 }
 
 @(private = "file")
