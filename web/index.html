@@ -21,6 +21,15 @@
 
         odin.runWasm("game.wasm", null, { wgpu: wgpuInterface.getInterface() }, memInterface, /*intSize=8*/);
     </script>
+    <script type="text/javascript">
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementsByTagName('canvas')[0]
+
+            canvas.addEventListener('click', async () => {
+                await canvas.requestPointerLock()
+            })
+        })
+    </script>
 </body>
 
 </html>

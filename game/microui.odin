@@ -22,7 +22,9 @@ microui_update :: proc(state: ^GameState, dt: f32) {
     mu.begin(ctx)
 
     if (mu.begin_window(ctx, "Debug", { x = 10, y = 10, w = 200, h = 300 })) {
-        mu.label(ctx, fmt.aprintf("FPS = %d | delta = %f", u32(1 / dt), dt))
+        text := fmt.aprintf("FPS = %d | delta = %f", u32(1 / dt), dt)
+        defer delete(text)
+        mu.label(ctx, text)
         mu.button(ctx, "Button :)", .NONE, {.ALIGN_CENTER})
 
         mu.end_window(ctx)
