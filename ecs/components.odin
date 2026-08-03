@@ -46,6 +46,7 @@ ChunkComponent :: struct {
 	is_meshing:   bool,
 	is_empty: bool,
 	is_all_solid: bool,
+	pending_delete: bool,
 }
 
 LightComponent :: struct {

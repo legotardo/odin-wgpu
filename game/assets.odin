@@ -35,6 +35,17 @@ assets_register_material :: proc(
 	return MaterialHandle(name)
 }
 
+assets_unregister_material :: proc(
+	assets: ^Assets,
+	name: string,
+) {
+	found_material, ok := assets.materials[name]
+	if (ok) {
+		renderer.material_destroy(&found_material)
+		delete_key(&assets.materials, name)
+	}
+}
+
 assets_get_material :: proc(assets: ^Assets, handle: MaterialHandle) -> ^renderer.Material {
 	return &assets.materials[string(handle)]
 }
@@ -50,6 +61,17 @@ assets_register_mesh :: proc(assets: ^Assets, name: string, mesh: renderer.Mesh)
 	logger.info("[ASSETS] Mesh %s registered", name)
 
 	return MeshHandle(name)
+}
+
+assets_unregister_mesh :: proc(
+	assets: ^Assets,
+	name: string,
+) {
+	found_mesh, ok := assets.meshes[name]
+	if (ok) {
+		renderer.mesh_destroy(&found_mesh)
+		delete_key(&assets.meshes, name)
+	}
 }
 
 assets_get_mesh :: proc(assets: ^Assets, handle: MeshHandle) -> ^renderer.Mesh {
