@@ -123,7 +123,6 @@ game_awake :: proc(state: ^GameState) {
 	// )
 	
 	spawn_player(state)
-	spawn_world_chunks(state)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
@@ -135,6 +134,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	system_generate_chunk_mesh(state)
 	system_update_lights(state)
 	system_resolve_thread_tasks(state)
+	system_chunk_management(state)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
 		state.renderer.use_wireframe = !state.renderer.use_wireframe

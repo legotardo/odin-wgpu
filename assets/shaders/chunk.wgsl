@@ -129,7 +129,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fog_start = 30.0;
     let fog_end = 50.0;
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
-    let fog_color = vec3<f32>(0.45, 0.68, 0.87);
+    let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 
     final_color = mix(fog_color, final_color, fog_factor);
 

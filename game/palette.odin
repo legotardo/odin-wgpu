@@ -10,9 +10,7 @@ palette_init_default :: proc() -> Palette {
     p := Palette{}
 
     p.colors[0] = {0, 0, 0, 0} // Nothing
-    p.colors[1] = {0.2, 0.8, 0.2, 1.0} // Green 1
-    p.colors[2] = {0.5, 0.35, 0.2, 1.0} // Brown 1
-    p.colors[3] = {0.0, 0.35, 0.2, 1.0} // Green 2
+    p.colors[1] = {0.247, 0.568, 0.066, 1.0} // Green 1
 
     return p
 }

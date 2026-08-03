@@ -1,7 +1,7 @@
 package game
 
+import "core:fmt"
 import "core:math"
-import "core:math/noise"
 import "core:math/linalg"
 import "core:thread"
 import "../constants"
@@ -11,20 +11,73 @@ import "../libs/fast_noise"
 
 terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))
 
-spawn_world_chunks :: proc(state: ^GameState) {
-	for y in 0 ..< 4 {
-		for z in -constants.WORLD_SIZE..< constants.WORLD_SIZE {
-			for x in -constants.WORLD_SIZE..< constants.WORLD_SIZE {
-				chunk := ecs.entity_create(state.world)
-				ecs.entity_add_transform(state.world, chunk, {
-					position = { 
-						f32(i32(x) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
-						f32(i32(y) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE, 
-						f32(i32(z) * constants.CHUNK_SIZE) * constants.BLOCK_SIZE 
-					},
-					scale = { 1, 1, 1 }
-				})
-				ecs.entity_add_chunk(state.world, chunk, {})
+system_chunk_management :: proc(state: ^GameState) {
+	player_pos: linalg.Vector3f32
+	player_found := false
+
+	mask_player := ecs.ComponentMask{.TransformComponent, .FirstPersonComponent}
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask_player) == mask_player {
+			player_pos = state.world.transforms[i].position
+			player_found = true
+			break
+		}
+	}
+
+	if !player_found do return
+
+	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+	
+	player_chunk_x := math.floor(player_pos.x / chunk_size_world) * chunk_size_world
+	player_chunk_y := math.floor(player_pos.y / chunk_size_world) * chunk_size_world
+	player_chunk_z := math.floor(player_pos.z / chunk_size_world) * chunk_size_world
+
+	render_dist_horizontal: f32 = 4.0
+	render_dist_vertical: f32 = 2.0
+	
+	limit_h := render_dist_horizontal * chunk_size_world
+	limit_v := render_dist_vertical * 6
+
+	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask_chunk) != mask_chunk do continue
+
+		t := &state.world.transforms[i]
+		
+		dist_x := math.abs(t.position.x - player_chunk_x)
+		dist_y := math.abs(t.position.y - player_chunk_y)
+		dist_z := math.abs(t.position.z - player_chunk_z)
+
+		if dist_x > limit_h || dist_y > limit_v || dist_z > limit_h {
+			ecs.entity_destroy(state.world, ecs.Entity(i))
+		}
+	}
+
+	chunks_created_this_frame := 0
+	max_chunks_per_frame := 2
+
+	spawn_loop: for y := -int(render_dist_vertical); y <= int(render_dist_vertical); y += 1 {
+		for z := -int(render_dist_horizontal); z <= int(render_dist_horizontal); z += 1 {
+			for x := -int(render_dist_horizontal); x <= int(render_dist_horizontal); x += 1 {
+				target_pos := linalg.Vector3f32{
+					player_chunk_x + (f32(x) * chunk_size_world),
+					player_chunk_y + (f32(y) * chunk_size_world),
+					player_chunk_z + (f32(z) * chunk_size_world),
+				}
+
+				if get_chunk_at(state.world, target_pos) == nil {
+					chunk := ecs.entity_create(state.world)
+					ecs.entity_add_transform(state.world, chunk, {
+						position = target_pos,
+						scale = {1, 1, 1},
+					})
+					ecs.entity_add_chunk(state.world, chunk, {})
+
+					chunks_created_this_frame += 1
+					if chunks_created_this_frame >= max_chunks_per_frame {
+						break spawn_loop
+					}
+				}
 			}
 		}
 	}
@@ -81,21 +134,62 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		}
 
 		if chunk.is_generated && chunk.is_dirty && !chunk.is_meshing {
+			if chunk.is_empty {
+				chunk.is_meshing = false
+				chunk.is_dirty = false
+				continue
+			}
+
+			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+			
+			n0 := get_chunk_at(state.world, t.position + {-cs, 0  , 0})
+			n1 := get_chunk_at(state.world, t.position + {cs , 0  , 0})
+			n2 := get_chunk_at(state.world, t.position + {0  , -cs, 0})
+			n3 := get_chunk_at(state.world, t.position + {0  , cs , 0})
+			n4 := get_chunk_at(state.world, t.position + {0  , 0  , -cs})
+			n5 := get_chunk_at(state.world, t.position + {0  , 0  , cs})
+
+			neighbors_ready := true
+			if n0 != nil && !n0.is_generated do neighbors_ready = false
+			if n1 != nil && !n1.is_generated do neighbors_ready = false
+			if n2 != nil && !n2.is_generated do neighbors_ready = false
+			if n3 != nil && !n3.is_generated do neighbors_ready = false
+			if n4 != nil && !n4.is_generated do neighbors_ready = false
+			if n5 != nil && !n5.is_generated do neighbors_ready = false
+
+			if !neighbors_ready do continue
+
+			if chunk.is_all_solid {
+				is_hidden := true
+				
+				if n0 != nil && !n0.is_all_solid do is_hidden = false
+				if n1 != nil && !n1.is_all_solid do is_hidden = false
+				if n2 != nil && !n2.is_all_solid do is_hidden = false
+				if n3 != nil && !n3.is_all_solid do is_hidden = false
+				if n4 != nil && !n4.is_all_solid do is_hidden = false
+				if n5 != nil && !n5.is_all_solid do is_hidden = false
+				
+				if is_hidden {
+					chunk.is_meshing = false
+					chunk.is_dirty = false
+					continue
+				}
+			}
+
 			chunk.is_meshing = true
 
 			task_data := new(ChunkTaskData)
 			task_data.chunk = chunk
 			task_data.chunk_pos = t.position
-			task_data.entity_index = i32(i)
+			task_data.entity_index = i
 			task_data.lod = desired_lod
 
-			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-			task_data.neighbors[0] = get_chunk_at(state.world, t.position + {-cs, 0  , 0})
-			task_data.neighbors[1] = get_chunk_at(state.world, t.position + {cs , 0  , 0})
-			task_data.neighbors[2] = get_chunk_at(state.world, t.position + {0  , -cs, 0})
-			task_data.neighbors[3] = get_chunk_at(state.world, t.position + {0  , cs , 0})
-			task_data.neighbors[4] = get_chunk_at(state.world, t.position + {0  , 0  , -cs})
-			task_data.neighbors[5] = get_chunk_at(state.world, t.position + {0  , 0  , cs})
+			task_data.neighbors[0] = n0
+			task_data.neighbors[1] = n1
+			task_data.neighbors[2] = n2
+			task_data.neighbors[3] = n3
+			task_data.neighbors[4] = n4
+			task_data.neighbors[5] = n5
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
 		}
@@ -103,6 +197,7 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 }
 
 chunk_generate_task :: proc(t: thread.Task) {
+	defer free_all(context.temp_allocator)
 	data := cast(^ChunkGenTaskData)t.data
 
 	if len(data.chunk.palette) == 0 {
@@ -132,6 +227,7 @@ chunk_generate_task :: proc(t: thread.Task) {
 
 	BASE_HEIGHT: f32 = 64.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
+	blocks_placed: i32 = 0
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
@@ -143,19 +239,24 @@ chunk_generate_task :: proc(t: thread.Task) {
 			for y in 0 ..< chunk_size {
 				world_block_y := chunk_block_y + y
 
-				if world_block_y < surface_block_y - 3 {
+				if world_block_y < surface_block_y {
 					chunk_set_block(data.chunk, x, y, z, 1)
-				} else if world_block_y < surface_block_y {
-					chunk_set_block(data.chunk, x, y, z, 2)
-				} else if world_block_y == surface_block_y {
-					chunk_set_block(data.chunk, x, y, z, 3)
+					blocks_placed += 1
 				}
 			}
 		}
 	}
+
+	max_blocks := chunk_size * chunk_size * chunk_size
+	if blocks_placed == 0 {
+		data.chunk.is_empty = true
+	} else if blocks_placed == max_blocks {
+		data.chunk.is_all_solid = true
+	}
 }
 
 chunk_mesh_task :: proc(t: thread.Task) {
+	defer free_all(context.temp_allocator)
 	data := cast(^ChunkTaskData)t.data
 
 	temp_vertices, temp_indices := generate_chunk_mesh(
@@ -361,7 +462,7 @@ chunk_get_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, neighbors: [6]
 		if neighbors[1] == nil do return 0
 		return chunk_get_block_local(neighbors[1], x - constants.CHUNK_SIZE, y, z)
 	} else if y < 0 {
-		if neighbors[2] == nil do return 0
+		if neighbors[2] == nil do return 1
 		return chunk_get_block_local(neighbors[2], x, constants.CHUNK_SIZE + y, z)
 	} else if y >= constants.CHUNK_SIZE {
 		if neighbors[3] == nil do return 0

@@ -130,7 +130,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 				loadOp = .Clear,
 				storeOp = .Store,
 				depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
-				clearValue = {0.47, 0.68, 0.87, 1},
+				clearValue = {0.333, 0.721, 1.0, 1},
 			},
 			depthStencilAttachment = &{
 				view = r.depth_texture_view,

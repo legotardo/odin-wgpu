@@ -44,6 +44,8 @@ ChunkComponent :: struct {
 	is_generated: bool,
 	is_dirty:     bool,
 	is_meshing:   bool,
+	is_empty: bool,
+	is_all_solid: bool,
 }
 
 LightComponent :: struct {

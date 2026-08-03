@@ -9,7 +9,7 @@ import "../renderer"
 ChunkTaskData :: struct {
     chunk: ^ecs.ChunkComponent,
 	chunk_pos: linalg.Vector3f32,
-	entity_index: i32,
+	entity_index: int,
 	neighbors: [6]^ecs.ChunkComponent,
 	vertices: []renderer.Vertex,
 	indices: []u16,
@@ -23,7 +23,11 @@ ChunkGenTaskData :: struct {
 	node_tree: rawptr,
 }
 
+TASKS_LIMIT :: 500
+
 system_resolve_thread_tasks :: proc(state: ^GameState) {
+	current_tasks_count := 0
+
 	for thread.pool_num_done(state.thread_pool) > 0 {
 		task, ok := thread.pool_pop_done(state.thread_pool)
 		if !ok do continue
@@ -59,5 +63,9 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 			delete(data.indices)
 			free(data)
 		}
+
+		current_tasks_count += 1
+
+		if current_tasks_count >= TASKS_LIMIT do break
 	}
 }
