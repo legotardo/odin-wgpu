@@ -11,6 +11,9 @@ Window :: struct {
 	height:          u32,
 	handle:          rawptr,
 	resize_callback: WindowResizeCall,
+	key_callback:    WindowKeyCall,
+	cursor_callback: WindowCursorCall,
+	terminate:       bool,
 }
 
 state: struct {
@@ -47,6 +50,12 @@ destroy_window :: proc(window: ^Window) {
 
 get_window_proc :: proc(window: ^Window) -> rawptr {
 	return window.handle
+}
+
+toggle_cursor :: proc(window: ^Window) {}
+
+get_dpi :: proc(window: ^Window) -> f32 {
+	return 100
 }
 
 get_window_surface :: proc(window: ^Window, instance: wgpu.Instance) -> wgpu.Surface {
@@ -95,4 +104,8 @@ os_fini :: proc "contextless" () {
 	context = runtime.default_context()
 
 	state.finish_callback()
+}
+
+get_num_cores :: proc() -> int {
+    return 1
 }

@@ -1,6 +1,7 @@
 #+build !js
 package platform
 
+import "core:os"
 import "../input"
 import "base:runtime"
 import "core:c"
@@ -191,4 +192,8 @@ cursor_pos_callback :: proc "c" (handle: glfw.WindowHandle, xpos, ypos: f64) {
 
 		ptr.cursor_callback(f32(xpos), f32(ypos))
 	}
+}
+
+get_num_cores :: proc() -> int {
+    return os.get_processor_core_count()
 }

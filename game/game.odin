@@ -1,6 +1,5 @@
 package game
 
-import "core:os"
 import "core:thread"
 import "vendor:wgpu"
 
@@ -34,7 +33,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	palette := palette_init_default()
 	thread_pool := new(thread.Pool)
 
-	num_cpus := os.get_processor_core_count()
+	num_cpus := platform.get_num_cores()
 	thread.pool_init(thread_pool, context.allocator, num_cpus - 1)
 	thread.pool_start(thread_pool)
 

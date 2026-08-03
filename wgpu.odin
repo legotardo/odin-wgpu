@@ -35,14 +35,24 @@ wgpu_init :: proc(window: ^platform.Window) {
 		context = state.ctx
 		assert(status == .Success, "Failed to request adapter")
 
-		state.adapter = adapter
-		features := [2]wgpu.FeatureName{.PolygonModeLine, .VertexWritableStorage}
+		if (ODIN_ARCH == .wasm64p32 || ODIN_ARCH == .wasm32) {
+			state.adapter = adapter
 
-		wgpu.AdapterRequestDevice(
-			adapter,
-			&{requiredFeatures = raw_data(features[:]), requiredFeatureCount = len(features)},
-			{callback = on_device},
-		)
+			wgpu.AdapterRequestDevice(
+				adapter,
+				&{requiredFeatureCount = 0},
+				{callback = on_device},
+			)
+		} else {
+			state.adapter = adapter
+			features := [2]wgpu.FeatureName{.PolygonModeLine, .VertexWritableStorage}
+
+			wgpu.AdapterRequestDevice(
+				adapter,
+				&{requiredFeatures = raw_data(features[:]), requiredFeatureCount = len(features)},
+				{callback = on_device},
+			)
+		}
 	}
 
 	on_device :: proc "c" (
