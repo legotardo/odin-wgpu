@@ -42,6 +42,8 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
 		mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
 
+		if mesh_ptr == nil || mat_ptr == nil do continue
+
 		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr, transform = m, should_use_instance = !r.ignore_instancing})
 	}
 

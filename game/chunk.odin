@@ -269,7 +269,7 @@ chunk_generate_task :: proc(t: thread.Task) {
 	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 1, nil)
 	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 2, nil)
 
-	BASE_HEIGHT: f32 = 60.0
+	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
 	blocks_placed: i32 = 0
 
