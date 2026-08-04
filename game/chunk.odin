@@ -37,8 +37,8 @@ system_chunk_management :: proc(state: ^GameState) {
 	render_dist_horizontal: f32 = 4.0
 	render_dist_vertical: f32 = 2.0
 	
-	limit_h := (render_dist_horizontal + 1.0) * chunk_size_world
-	limit_v := (render_dist_vertical + 1.0) * chunk_size_world
+	limit_h := (render_dist_horizontal + 2.0) * chunk_size_world
+	limit_v := (render_dist_vertical + 2.0) * chunk_size_world
 
 	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 	any_task_active := false
@@ -87,11 +87,14 @@ system_chunk_management :: proc(state: ^GameState) {
 	}
 
 	chunks_created_this_frame := 0
-	max_chunks_per_frame := 2
+	max_chunks_per_frame := 4
 
-	spawn_loop: for y := -int(render_dist_vertical); y <= int(render_dist_vertical); y += 1 {
-		for z := -int(render_dist_horizontal); z <= int(render_dist_horizontal); z += 1 {
-			for x := -int(render_dist_horizontal); x <= int(render_dist_horizontal); x += 1 {
+	spawn_h := int(render_dist_horizontal) + 1
+	spawn_v := int(render_dist_vertical) + 1
+
+	spawn_loop: for y := -spawn_v; y <= spawn_v; y += 1 {
+		for z := -spawn_h; z <= spawn_h; z += 1 {
+			for x := -spawn_h; x <= spawn_h; x += 1 {
 				target_pos := linalg.Vector3f32{
 					player_chunk_x + (f32(x) * chunk_size_world),
 					player_chunk_y + (f32(y) * chunk_size_world),
@@ -179,12 +182,6 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 				continue
 			}
 
-			if chunk.is_all_solid {
-				chunk.is_meshing = false
-				chunk.is_dirty = false
-				continue
-			}
-
 			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 			
 			n0_idx := get_chunk_at(state.world, t.position + {-cs, 0  , 0})
@@ -194,12 +191,32 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			n4_idx := get_chunk_at(state.world, t.position + {0  , 0  , -cs})
 			n5_idx := get_chunk_at(state.world, t.position + {0  , 0  , cs})
 
-			if n0_idx != -1 && !state.world.chunks[n0_idx].is_generated do continue
-			if n1_idx != -1 && !state.world.chunks[n1_idx].is_generated do continue
-			if n2_idx != -1 && !state.world.chunks[n2_idx].is_generated do continue
-			if n3_idx != -1 && !state.world.chunks[n3_idx].is_generated do continue
-			if n4_idx != -1 && !state.world.chunks[n4_idx].is_generated do continue
-			if n5_idx != -1 && !state.world.chunks[n5_idx].is_generated do continue
+			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n1 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n2 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n3 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n4 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n5 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+
+			if n0 == nil || !n0.is_generated do continue
+			if n1 == nil || !n1.is_generated do continue
+			if n2 == nil || !n2.is_generated do continue
+			if n3 == nil || !n3.is_generated do continue
+			if n4 == nil || !n4.is_generated do continue
+			if n5 == nil || !n5.is_generated do continue
+
+			if chunk.is_all_solid {
+				if n0.is_all_solid &&
+				   n1.is_all_solid &&
+				   n2.is_all_solid &&
+				   n3.is_all_solid &&
+				   n4.is_all_solid &&
+				   n5.is_all_solid {
+					chunk.is_meshing = false
+					chunk.is_dirty = false
+					continue
+				}
+			}
 
 			chunk.is_meshing = true
 
@@ -305,12 +322,12 @@ chunk_generate_task :: proc(t: thread.Task) {
 	center_idx := (chunk_size / 2) * chunk_size + (chunk_size / 2)
 	surface_y := i32(BASE_HEIGHT + (terrain_buffer[center_idx] * HEIGHT_AMPLITUDE)) + 1
 
-	stamp_prefab(chunk, data.teapote_prefab, {center_x, f32(surface_y + 1 - data.teapote_prefab.min_y_offset), center_z}, {chunk_base_x, f32(chunk_base_y), chunk_base_z})
+	blocks_stamped := stamp_prefab(chunk, data.teapote_prefab, {center_x, f32(surface_y + 1 - data.teapote_prefab.min_y_offset), center_z}, {chunk_base_x, f32(chunk_base_y), chunk_base_z})
 
 	max_blocks := chunk_size * chunk_size * chunk_size
-	if blocks_placed == 0 {
+	if blocks_placed == 0 && blocks_stamped == 0 {
 		chunk.is_empty = true
-	} else if blocks_placed == max_blocks {
+	} else if blocks_placed == max_blocks && blocks_stamped == 0 {
 		chunk.is_all_solid = true
 	}
 }
@@ -528,13 +545,13 @@ chunk_get_block :: proc(world: ^ecs.World, chunk_idx: int, x, y, z: i32, neighbo
 	n_5 := neighbor_indices[5] >= 0 ? &world.chunks[neighbor_indices[5]] : nil
 
 	if x < 0 && n_0 != nil                     do return chunk_get_block_local(n_0, constants.CHUNK_SIZE + x, y, z)
-	if x >= constants.CHUNK_SIZE && n_1 != nil do return chunk_get_block_local(n_1, constants.CHUNK_SIZE - x, y, z)
+	if x >= constants.CHUNK_SIZE && n_1 != nil do return chunk_get_block_local(n_1, x - constants.CHUNK_SIZE, y, z)
 
 	if y < 0 && n_2 != nil                     do return chunk_get_block_local(n_2, x, constants.CHUNK_SIZE + y, z)
-	if y >= constants.CHUNK_SIZE && n_3 != nil do return chunk_get_block_local(n_3, x, constants.CHUNK_SIZE - y, z)
+	if y >= constants.CHUNK_SIZE && n_3 != nil do return chunk_get_block_local(n_3, x, y - constants.CHUNK_SIZE, z)
 
 	if z < 0 && n_4 != nil                     do return chunk_get_block_local(n_4, x, y, constants.CHUNK_SIZE + z)
-	if z >= constants.CHUNK_SIZE && n_5 != nil do return chunk_get_block_local(n_5, x, y, constants.CHUNK_SIZE - z)
+	if z >= constants.CHUNK_SIZE && n_5 != nil do return chunk_get_block_local(n_5, x, y, z - constants.CHUNK_SIZE)
 
 	return chunk_get_block_local(&world.chunks[chunk_idx], x, y, z)
 }
@@ -663,7 +680,9 @@ get_chunk_at :: proc(world: ^ecs.World, pos: linalg.Vector3f32) -> int {
 	for i in 0..< len(world.entities) {
 		if (world.masks[i] & mask) != mask do continue
 
-		if world.transforms[i].position == pos {
+		if math.abs(world.transforms[i].position.x - pos.x) < 0.1 &&
+		   math.abs(world.transforms[i].position.y - pos.y) < 0.1 &&
+		   math.abs(world.transforms[i].position.z - pos.z) < 0.1 {
 			return i
 		}
 	}
@@ -761,10 +780,12 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
 	world_position: linalg.Vector3f32,
 	chunk_base: linalg.Vector3f32,
-) {
+) -> i32 {
 	local_start_x := i32(world_position.x - chunk_base.x)
 	local_start_y := i32(world_position.y - chunk_base.y)
 	local_start_z := i32(world_position.z - chunk_base.z)
+
+	blocks_stamped: i32 = 0
 
 	palette_remap := make([]int, len(prefab.palette), context.temp_allocator)
 	for i in 0..<len(palette_remap) {
@@ -800,9 +821,12 @@ stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
 				target_palette_idx := palette_remap[vox_color_index]
 				
 				chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
+				blocks_stamped += 1
 			}
 		}
 	}
+
+	return blocks_stamped
 }
 
 @(private = "file")
