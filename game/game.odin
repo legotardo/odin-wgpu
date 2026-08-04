@@ -13,6 +13,8 @@ import mu "vendor:microui"
 default_shader_src := #load("../assets/shaders/default.wgsl")
 chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
 
+teapot_vox := #load("../assets/objects/teapot.vox")
+
 GameState :: struct {
 	assets:   Assets,
 	renderer: ^renderer.Renderer,
@@ -124,6 +126,8 @@ game_awake :: proc(state: ^GameState) {
 	
 	spawn_player(state)
 	biome_catalog_init()
+
+	assets_register_voxel_prefab(&state.assets, "teapot", vox_model_load(teapot_vox))
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {

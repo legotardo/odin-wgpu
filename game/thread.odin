@@ -27,6 +27,8 @@ ChunkGenTaskData :: struct {
 	terrain_node: rawptr,
 	temp_node: rawptr,
 	humid_node: rawptr,
+
+	teapote_prefab: ^VoxelPrefab
 }
 
 TASKS_LIMIT :: 500

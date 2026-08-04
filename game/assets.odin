@@ -5,16 +5,19 @@ import "../renderer"
 
 MaterialHandle :: distinct string
 MeshHandle :: distinct string
+VoxelPrefabHandle :: distinct string
 
 Assets :: struct {
-	materials: map[string]renderer.Material,
-	meshes:    map[string]renderer.Mesh,
+	materials:     map[string]renderer.Material,
+	meshes:        map[string]renderer.Mesh,
+	voxel_prefabs: map[string]VoxelPrefab,
 }
 
 assets_init :: proc() -> Assets {
 	return {
-		materials = make(map[string]renderer.Material),
-		meshes    = make(map[string]renderer.Mesh), //
+		materials     = make(map[string]renderer.Material),
+		meshes        = make(map[string]renderer.Mesh),
+		voxel_prefabs = make(map[string]VoxelPrefab),
 	}
 }
 
@@ -35,10 +38,7 @@ assets_register_material :: proc(
 	return MaterialHandle(name)
 }
 
-assets_unregister_material :: proc(
-	assets: ^Assets,
-	name: string,
-) {
+assets_unregister_material :: proc(assets: ^Assets, name: string) {
 	found_material, ok := assets.materials[name]
 	if (ok) {
 		renderer.material_destroy(&found_material)
@@ -63,10 +63,7 @@ assets_register_mesh :: proc(assets: ^Assets, name: string, mesh: renderer.Mesh)
 	return MeshHandle(name)
 }
 
-assets_unregister_mesh :: proc(
-	assets: ^Assets,
-	name: string,
-) {
+assets_unregister_mesh :: proc(assets: ^Assets, name: string) {
 	found_mesh, ok := assets.meshes[name]
 	if (ok) {
 		renderer.mesh_destroy(&found_mesh)
@@ -76,6 +73,36 @@ assets_unregister_mesh :: proc(
 
 assets_get_mesh :: proc(assets: ^Assets, handle: MeshHandle) -> ^renderer.Mesh {
 	return &assets.meshes[string(handle)]
+}
+
+
+assets_register_voxel_prefab :: proc(
+	assets: ^Assets,
+	name: string,
+	prefab: VoxelPrefab,
+) -> VoxelPrefabHandle {
+	found_prefab, ok := assets.voxel_prefabs[name]
+	if (ok) {
+		delete(found_prefab.blocks)
+	}
+
+	assets.voxel_prefabs[name] = prefab
+
+	logger.info("[ASSETS] Voxel Prefab %s registered", name)
+
+	return VoxelPrefabHandle(name)
+}
+
+assets_unregister_voxel_prefab :: proc(assets: ^Assets, name: string) {
+	found_prefab, ok := assets.voxel_prefabs[name]
+	if (ok) {
+		delete(found_prefab.blocks)
+		delete_key(&assets.materials, name)
+	}
+}
+
+assets_get_voxel_prefab :: proc(assets: ^Assets, handle: VoxelPrefabHandle) -> ^VoxelPrefab {
+	return &assets.voxel_prefabs[string(handle)]
 }
 
 assets_destroy :: proc(assets: ^Assets) {

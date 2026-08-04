@@ -24,10 +24,10 @@ BiomeConfig :: struct {
 BIOME_ZONES :: 3
 
 biome_matrix: [BIOME_ZONES][BIOME_ZONES]BiomeType = {
-	// TEMP: Frio       | Temperado  | Quente
-	{.Plains, .Plains, .Desert}, // UMIDADE: Seco
-	{.Plains, .Plains, .Desert}, // UMIDADE: Médio
-	{.Plains, .Plains, .Plains}, // UMIDADE: Úmido
+//              ^ Humid      ^ Temp
+	{.Plains, .Plains, .Desert},
+	{.Plains, .Plains, .Desert},
+	{.Plains, .Plains, .Plains},
 }
 
 biome_catalog: [len(BiomeType)]BiomeConfig

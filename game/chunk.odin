@@ -118,6 +118,7 @@ system_chunk_management :: proc(state: ^GameState) {
 
 system_generate_chunk :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+	teapote_prefab := assets_get_voxel_prefab(&state.assets, "teapot")
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) != mask do continue
@@ -136,6 +137,8 @@ system_generate_chunk :: proc(state: ^GameState) {
 			task_data.terrain_node = terrain_node
 			task_data.temp_node = temp_node
 			task_data.humid_node = humid_node
+
+			task_data.teapote_prefab = teapote_prefab
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_task, task_data, 0)
 		}
@@ -257,17 +260,17 @@ chunk_generate_task :: proc(t: thread.Task) {
 
 	chunk_size := constants.CHUNK_SIZE
 	block_size := constants.BLOCK_SIZE
-	start_x := f32(math.round(data.chunk_pos.x / block_size))
-	start_z := f32(math.round(data.chunk_pos.z / block_size))
-	chunk_block_y := i32(math.round(data.chunk_pos.y / block_size))
+	chunk_base_x := f32(math.round(data.chunk_pos.x / block_size))
+	chunk_base_y := i32(math.round(data.chunk_pos.y / block_size))
+	chunk_base_z := f32(math.round(data.chunk_pos.z / block_size))
 
 	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 
-	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 1, nil)
-	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 2, nil)
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed + 1, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed + 2, nil)
 
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
@@ -275,7 +278,7 @@ chunk_generate_task :: proc(t: thread.Task) {
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
-			idx := z * chunk_size + z
+			idx := z * chunk_size + x
 
 			terrain_height_raw := terrain_buffer[z * chunk_size + x]
 			world_surface_y := BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE)
@@ -287,11 +290,11 @@ chunk_generate_task :: proc(t: thread.Task) {
 			biome_id := biome_matrix[humid_idx][temp_idx]
 			config := biome_catalog[biome_id]
 
-			global_x := i32(start_x) + x
-			global_z := i32(start_z) + z
+			global_x := i32(chunk_base_x) + x
+			global_z := i32(chunk_base_z) + z
 
 			for y in 0 ..< chunk_size {
-				world_block_y := chunk_block_y + y
+				world_block_y := chunk_base_y + y
 
 				if world_block_y <= surface_block_y {
 					block_to_place: ecs.Block = .Air
@@ -310,6 +313,13 @@ chunk_generate_task :: proc(t: thread.Task) {
 			}
 		}
 	}
+
+	center_x := chunk_base_x + f32(chunk_size / 2)
+	center_z := chunk_base_z + f32(chunk_size / 2)
+	center_idx := (chunk_size / 2) * chunk_size + (chunk_size / 2)
+	surface_y := i32(BASE_HEIGHT + (terrain_buffer[center_idx] * HEIGHT_AMPLITUDE)) + 1
+
+	stamp_prefab(chunk, data.teapote_prefab, {center_x, f32(surface_y + 1 - data.teapote_prefab.min_y_offset), center_z}, {chunk_base_x, f32(chunk_base_y), chunk_base_z})
 
 	max_blocks := chunk_size * chunk_size * chunk_size
 	if blocks_placed == 0 {
@@ -592,6 +602,7 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Blo
 	}
 
 	palette_idx := -1
+	// Find the block in palette
 	for p, i in chunk.palette {
 		if p == block {
 			palette_idx = i
@@ -599,6 +610,7 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Blo
 		}
 	}
 
+	// If block is not found, append it to the palette
 	if palette_idx == -1 {
 		append(&chunk.palette, block)
 		palette_idx = len(chunk.palette) - 1
@@ -767,4 +779,79 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 	}
 
 	return false
+}
+
+@(private = "file")
+stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
+	world_position: linalg.Vector3f32,
+	chunk_base: linalg.Vector3f32,
+) {
+	local_start_x := i32(world_position.x - chunk_base.x)
+	local_start_y := i32(world_position.y - chunk_base.y)
+	local_start_z := i32(world_position.z - chunk_base.z)
+
+	palette_remap := make([]int, len(prefab.palette), context.temp_allocator)
+	for i in 0..<len(palette_remap) {
+		palette_remap[i] = -1
+	}
+	for p_block, p_idx in prefab.palette {
+		palette_remap[p_idx] = chunk_get_or_add_palette_idx(chunk, p_block)
+	}
+
+	for py in 0 ..< prefab.height {
+		for pz in 0 ..< prefab.depth {
+			for px in 0 ..< prefab.width {
+				cx := local_start_x + px
+				cy := local_start_y + py
+				cz := local_start_z + pz
+
+				if cx < 0 || cx >= constants.CHUNK_SIZE ||
+				   cy < 0 || cy >= constants.CHUNK_SIZE ||
+				   cz < 0 || cz >= constants.CHUNK_SIZE {
+					continue
+				}
+
+				idx := px + (py * prefab.width) + (pz * prefab.width * prefab.height)
+				vox_color_index := prefab.blocks[idx]
+				
+				if vox_color_index == 0 do continue 
+
+				if palette_remap[vox_color_index] == -1 {
+					real_block := prefab.palette[vox_color_index]
+					palette_remap[vox_color_index] = chunk_get_or_add_palette_idx(chunk, real_block)
+				}
+
+				target_palette_idx := palette_remap[vox_color_index]
+				
+				chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
+			}
+		}
+	}
+}
+
+@(private = "file")
+chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
+	for p, i in chunk.palette {
+		if p == block do return i
+	}
+	
+	append(&chunk.palette, block)
+	chunk_repack(chunk)
+	
+	return len(chunk.palette) - 1
+}
+
+@(private = "file")
+chunk_set_block_fast :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_idx: int) {
+	if chunk.bits_per_block > 0 {
+		idx := chunk_get_index(x, y, z)
+		blocks_per_u64 := 64 / i32(chunk.bits_per_block)
+		data_idx := idx / blocks_per_u64
+		bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
+
+		mask := (u64(1) << uint(chunk.bits_per_block)) - 1
+
+		chunk.packed_blocks[data_idx] &= ~(mask << bit_offset)
+		chunk.packed_blocks[data_idx] |= (u64(palette_idx) & mask) << bit_offset
+	}
 }

@@ -72,7 +72,7 @@ wgpu_init :: proc(window: ^platform.Window) {
 			device      = device,
 			usage       = {.RenderAttachment},
 			format      = .BGRA8Unorm,
-			presentMode = .Fifo, //Timing of display
+			presentMode = .Immediate, //Timing of display
 			alphaMode   = .Opaque,
 		}
 
