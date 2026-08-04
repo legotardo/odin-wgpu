@@ -1,6 +1,7 @@
 package ecs
 
 import "../renderer"
+import "../constants"
 import "core:math/linalg"
 
 TransformComponent :: struct {
@@ -32,7 +33,7 @@ FirstPersonComponent :: struct {
 	speed:       f32,
 }
 
-Block :: distinct u64
+Block :: distinct constants.Block
 ChunkComponent :: struct {
 	palette: [dynamic]Block,
 	packed_blocks: []u64,

@@ -23,7 +23,10 @@ ChunkGenTaskData :: struct {
 	world: ^ecs.World,
 	chunk_pos: linalg.Vector3f32,
 	entity_index: int,
-	node_tree: rawptr,
+
+	terrain_node: rawptr,
+	temp_node: rawptr,
+	humid_node: rawptr,
 }
 
 TASKS_LIMIT :: 500

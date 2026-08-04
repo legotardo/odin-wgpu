@@ -10,6 +10,8 @@ import "../renderer"
 import "../libs/fast_noise"
 
 terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))
+temp_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JBgAAKIVECAY@BQ16NwvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
+humid_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JC@BHpECAY@BQFK5HvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
 
 system_chunk_management :: proc(state: ^GameState) {
 	player_pos: linalg.Vector3f32
@@ -131,7 +133,9 @@ system_generate_chunk :: proc(state: ^GameState) {
 			task_data.entity_index = i
 			task_data.entity = state.world.entities[i]
 			task_data.chunk_pos = t.position
-			task_data.node_tree = terrain_node
+			task_data.terrain_node = terrain_node
+			task_data.temp_node = temp_node
+			task_data.humid_node = humid_node
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_task, task_data, 0)
 		}
@@ -246,29 +250,24 @@ chunk_generate_task :: proc(t: thread.Task) {
 	chunk := &data.world.chunks[data.entity_index]
 
 	if len(chunk.palette) == 0 {
-		append(&chunk.palette, 0)
+		append(&chunk.palette, ecs.Block.Air)
 	}
 
 	seed: i32 = 12345
 
 	chunk_size := constants.CHUNK_SIZE
 	block_size := constants.BLOCK_SIZE
-	noise_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	start_x := f32(math.round(data.chunk_pos.x / block_size))
 	start_z := f32(math.round(data.chunk_pos.z / block_size))
-
 	chunk_block_y := i32(math.round(data.chunk_pos.y / block_size))
 
-	fast_noise.GenUniformGrid2D(
-		data.node_tree,
-		raw_data(noise_buffer),
-		start_x, start_z,
-		chunk_size, chunk_size,
-		1,
-		1,
-		seed,
-		nil
-	)
+	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 1, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), start_x, start_z, chunk_size, chunk_size, 1, 1, seed + 2, nil)
 
 	BASE_HEIGHT: f32 = 60.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
@@ -276,16 +275,36 @@ chunk_generate_task :: proc(t: thread.Task) {
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
+			idx := z * chunk_size + z
 
-			terrain_height_raw := noise_buffer[z * chunk_size + x]
+			terrain_height_raw := terrain_buffer[z * chunk_size + x]
 			world_surface_y := BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE)
 			surface_block_y := i32(world_surface_y)
+
+			temp_idx := biome_noise_to_index_threshold(temp_buffer[idx])
+			humid_idx := biome_noise_to_index_threshold(humid_buffer[idx])
+			
+			biome_id := biome_matrix[humid_idx][temp_idx]
+			config := biome_catalog[biome_id]
+
+			global_x := i32(start_x) + x
+			global_z := i32(start_z) + z
 
 			for y in 0 ..< chunk_size {
 				world_block_y := chunk_block_y + y
 
-				if world_block_y < surface_block_y {
-					chunk_set_block(chunk, x, y, z, 1)
+				if world_block_y <= surface_block_y {
+					block_to_place: ecs.Block = .Air
+
+					if world_block_y == surface_block_y {
+						block_to_place = biome_get_variant_block(config.surface_blocks, global_x, world_block_y, global_z)
+					} else if world_block_y > surface_block_y - config.sub_surface_depth {
+						block_to_place = config.sub_surface_block
+					} else {
+						block_to_place = config.base_block
+					}
+
+					chunk_set_block(chunk, x, y, z, block_to_place)
 					blocks_placed += 1
 				}
 			}
@@ -365,7 +384,7 @@ generate_chunk_mesh :: proc(
 					block_current := chunk_get_block(world, chunk_idx, voxel_pos[0], voxel_pos[1], voxel_pos[2], neighbor_indices, neighbor_entities)
 					block_neighbor := chunk_get_block(world, chunk_idx, voxel_pos[0] + neighbor_dir[0], voxel_pos[1] + neighbor_dir[1], voxel_pos[2] + neighbor_dir[2], neighbor_indices, neighbor_entities)
 
-					if block_current != 0 && block_neighbor == 0 && is_current_inside {
+					if block_current != .Air && block_neighbor == .Air && is_current_inside {
 						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod
@@ -377,7 +396,7 @@ generate_chunk_mesh :: proc(
 
 						mask[mask_idx] = MaskData{block = i16(block_current), ao = {ao_bl, ao_br, ao_tr, ao_tl}}
 
-					} else if block_current == 0 && block_neighbor != 0 && is_neighbor_inside {
+					} else if block_current == .Air && block_neighbor != .Air && is_neighbor_inside {
 						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod
@@ -507,27 +526,27 @@ chunk_get_index :: proc(x, y, z: i32) -> i32 {
 chunk_get_block :: proc(world: ^ecs.World, chunk_idx: int, x, y, z: i32, neighbor_indices: [6]int, neighbor_entities: [6]ecs.Entity) -> ecs.Block {
 	if x < 0 {
 		n_idx := neighbor_indices[0]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[0] do return 0
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[0] do return .Air
 		return chunk_get_block_local(&world.chunks[n_idx], constants.CHUNK_SIZE + x, y, z)
 	} else if x >= constants.CHUNK_SIZE {
 		n_idx := neighbor_indices[1]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[1] do return 0
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[1] do return .Air
 		return chunk_get_block_local(&world.chunks[n_idx], x - constants.CHUNK_SIZE, y, z)
 	} else if y < 0 {
 		n_idx := neighbor_indices[2]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[2] do return 1
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[2] do return .Grass1
 		return chunk_get_block_local(&world.chunks[n_idx], x, constants.CHUNK_SIZE + y, z)
 	} else if y >= constants.CHUNK_SIZE {
 		n_idx := neighbor_indices[3]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[3] do return 0
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[3] do return .Air
 		return chunk_get_block_local(&world.chunks[n_idx], x, y - constants.CHUNK_SIZE, z)
 	} else if z < 0 {
 		n_idx := neighbor_indices[4]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[4] do return 0
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[4] do return .Air
 		return chunk_get_block_local(&world.chunks[n_idx], x, y, constants.CHUNK_SIZE + z)
 	} else if z >= constants.CHUNK_SIZE {
 		n_idx := neighbor_indices[5]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[5] do return 0
+		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[5] do return .Air
 		return chunk_get_block_local(&world.chunks[n_idx], x, y, z - constants.CHUNK_SIZE)
 	}
 
@@ -541,11 +560,11 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.B
 	   y >= constants.CHUNK_SIZE ||
 	   z < 0 ||
 	   z >= constants.CHUNK_SIZE {
-		return 0
+		return .Air
 	}
 
 	if chunk.bits_per_block == 0 {
-		if len(chunk.palette) == 0 do return 0
+		if len(chunk.palette) == 0 do return .Air
 		return chunk.palette[0]
 	}
 
@@ -685,15 +704,15 @@ sample_face_ao :: proc(
 	neighbor_indices: [6]int,
 	neighbor_entities: [6]ecs.Entity,
 ) -> (ao_bl, ao_br, ao_tr, ao_tl: f32) {
-	side_l := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbor_indices, neighbor_entities) != 0
-	side_r := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0], check_pos[1] + u_dir[1], check_pos[2] + u_dir[2], neighbor_indices, neighbor_entities) != 0
-	side_b := chunk_get_block(world, chunk_idx, check_pos[0] - v_dir[0], check_pos[1] - v_dir[1], check_pos[2] - v_dir[2], neighbor_indices, neighbor_entities) != 0
-	side_t := chunk_get_block(world, chunk_idx, check_pos[0] + v_dir[0], check_pos[1] + v_dir[1], check_pos[2] + v_dir[2], neighbor_indices, neighbor_entities) != 0
+	side_l := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0], check_pos[1] - u_dir[1], check_pos[2] - u_dir[2], neighbor_indices, neighbor_entities) != .Air
+	side_r := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0], check_pos[1] + u_dir[1], check_pos[2] + u_dir[2], neighbor_indices, neighbor_entities) != .Air
+	side_b := chunk_get_block(world, chunk_idx, check_pos[0] - v_dir[0], check_pos[1] - v_dir[1], check_pos[2] - v_dir[2], neighbor_indices, neighbor_entities) != .Air
+	side_t := chunk_get_block(world, chunk_idx, check_pos[0] + v_dir[0], check_pos[1] + v_dir[1], check_pos[2] + v_dir[2], neighbor_indices, neighbor_entities) != .Air
 
-	corner_bl := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0] - v_dir[0], check_pos[1] - u_dir[1] - v_dir[1], check_pos[2] - u_dir[2] - v_dir[2], neighbor_indices, neighbor_entities) != 0
-	corner_br := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0] - v_dir[0], check_pos[1] + u_dir[1] - v_dir[1], check_pos[2] + u_dir[2] - v_dir[2], neighbor_indices, neighbor_entities) != 0
-	corner_tr := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0] + v_dir[0], check_pos[1] + u_dir[1] + v_dir[1], check_pos[2] + u_dir[2] + v_dir[2], neighbor_indices, neighbor_entities) != 0
-	corner_tl := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0] + v_dir[0], check_pos[1] - u_dir[1] + v_dir[1], check_pos[2] - u_dir[2] + v_dir[2], neighbor_indices, neighbor_entities) != 0
+	corner_bl := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0] - v_dir[0], check_pos[1] - u_dir[1] - v_dir[1], check_pos[2] - u_dir[2] - v_dir[2], neighbor_indices, neighbor_entities) != .Air
+	corner_br := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0] - v_dir[0], check_pos[1] + u_dir[1] - v_dir[1], check_pos[2] + u_dir[2] - v_dir[2], neighbor_indices, neighbor_entities) != .Air
+	corner_tr := chunk_get_block(world, chunk_idx, check_pos[0] + u_dir[0] + v_dir[0], check_pos[1] + u_dir[1] + v_dir[1], check_pos[2] + u_dir[2] + v_dir[2], neighbor_indices, neighbor_entities) != .Air
+	corner_tl := chunk_get_block(world, chunk_idx, check_pos[0] - u_dir[0] + v_dir[0], check_pos[1] - u_dir[1] + v_dir[1], check_pos[2] - u_dir[2] + v_dir[2], neighbor_indices, neighbor_entities) != .Air
 
 	ao_bl = vertex_ao(side_l, side_b, corner_bl)
 	ao_br = vertex_ao(side_r, side_b, corner_br)
@@ -713,7 +732,7 @@ world_get_block :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.
 	chunk_pos := linalg.Vector3f32{chunk_x, chunk_y, chunk_z}
 
 	chunk_idx := get_chunk_at(world, chunk_pos)
-	if chunk_idx == -1 do return 0
+	if chunk_idx == -1 do return .Air
 
 	local_x := i32(math.floor((world_pos.x - chunk_x) / constants.BLOCK_SIZE))
 	local_y := i32(math.floor((world_pos.y - chunk_y) / constants.BLOCK_SIZE))
@@ -740,7 +759,7 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 				}
 
 				block := world_get_block(world, world_pos)
-				if block != 0 {
+				if block != .Air {
 					return true
 				}
 			}

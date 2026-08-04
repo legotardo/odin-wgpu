@@ -130,8 +130,6 @@ update :: proc(dt: f32) {
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
 
 	wgpu.SurfacePresent(state.surface)
-
-	// free_all(context.temp_allocator)
 }
 
 @(private = "file")

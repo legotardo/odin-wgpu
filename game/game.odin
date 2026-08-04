@@ -123,6 +123,7 @@ game_awake :: proc(state: ^GameState) {
 	// )
 	
 	spawn_player(state)
+	biome_catalog_init()
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
