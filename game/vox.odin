@@ -1,5 +1,6 @@
 package game
 
+import "core:fmt"
 import "../libs/vox"
 import "../ecs"
 import "../constants"
@@ -30,47 +31,45 @@ vox_model_load :: proc(data: []u8) -> VoxelPrefab {
 	}
 
 	prefab.palette = make([]ecs.Block, 256)
-	
+	max_valid_blocks := len(constants.BLOCK_PALETTE_MAP)
+
 	for i in 0..<256 {
-		vox_color := data.palette[i]
-		
-		if vox_color[3] == 0 {
-			prefab.palette[i] = ecs.Block(.Air)
+		vox_rgba := data.palette[i]
+
+		if vox_rgba[3] == 0 {
+			prefab.palette[i] = .Air
 			continue
 		}
 
-		best_block := constants.Block.Air
-		best_dist := max(int)
-		
+		vox_hex := (u32(vox_rgba[0]) << 16) | (u32(vox_rgba[1]) << 8) | u32(vox_rgba[2])
+
+		matched_block := ecs.Block.Air
+
 		for map_entry in constants.BLOCK_PALETTE_MAP {
-			if map_entry.key == .Air do continue
-			
-			dist := color_distance(vox_color, map_entry.value)
-			if dist < best_dist {
-				best_dist = dist
-				best_block = map_entry.key
+			if map_entry.value == vox_hex {
+				matched_block = ecs.Block(map_entry.key)
+				break
 			}
 		}
-		
-		prefab.palette[i] = ecs.Block(best_block)
+
+		prefab.palette[i] = matched_block
 	}
 
 	prefab.blocks = make([]u8, w * h * d)
 	
+	min_y := max(i32)
+
 	for v in main_model.voxels {
 		px := i32(v.pos[0])
 		pz := i32(v.pos[1])
 		py := i32(v.pos[2])
 
+		if py < min_y do min_y = py
+
 		idx := px + (py * w) + (pz * w * h)
-		prefab.blocks[idx] = v.color_index
+		prefab.blocks[idx] = v.color_index - 1
 	}
 
-	min_y := max(i32)
-	for v in main_model.voxels {
-		py := i32(v.pos[2])
-		if py < min_y do min_y = py
-	}
 	prefab.min_y_offset = min_y == max(i32) ? 0 : min_y
 
 	return prefab

@@ -317,12 +317,23 @@ chunk_generate_task :: proc(t: thread.Task) {
 		}
 	}
 
-	center_x := chunk_base_x + f32(chunk_size / 2)
-	center_z := chunk_base_z + f32(chunk_size / 2)
-	center_idx := (chunk_size / 2) * chunk_size + (chunk_size / 2)
-	surface_y := i32(BASE_HEIGHT + (terrain_buffer[center_idx] * HEIGHT_AMPLITUDE)) + 1
+	local_center_x := chunk_size / 2
+	local_center_z := chunk_size / 2
+	local_center_idx := local_center_z * chunk_size + local_center_x
 
-	blocks_stamped := stamp_prefab(chunk, data.teapote_prefab, {center_x, f32(surface_y + 1 - data.teapote_prefab.min_y_offset), center_z}, {chunk_base_x, f32(chunk_base_y), chunk_base_z})
+	surface_block_y := i32(BASE_HEIGHT + (terrain_buffer[local_center_idx] * HEIGHT_AMPLITUDE))
+	
+	world_tree_x := chunk_base_x + f32(local_center_x)
+	world_tree_y := f32(surface_block_y + 1)
+	world_tree_z := chunk_base_z + f32(local_center_z)
+
+	blocks_stamped := stamp_prefab(
+		chunk, 
+		data.teapote_prefab, 
+		{world_tree_x, world_tree_y, world_tree_z}, 
+		{chunk_base_x, f32(chunk_base_y), chunk_base_z},
+	)
+
 
 	max_blocks := chunk_size * chunk_size * chunk_size
 	if blocks_placed == 0 && blocks_stamped == 0 {
