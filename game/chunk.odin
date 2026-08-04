@@ -179,6 +179,12 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 				continue
 			}
 
+			if chunk.is_all_solid {
+				chunk.is_meshing = false
+				chunk.is_dirty = false
+				continue
+			}
+
 			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 			
 			n0_idx := get_chunk_at(state.world, t.position + {-cs, 0  , 0})
@@ -188,32 +194,12 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			n4_idx := get_chunk_at(state.world, t.position + {0  , 0  , -cs})
 			n5_idx := get_chunk_at(state.world, t.position + {0  , 0  , cs})
 
-			neighbors_ready := true
-			if n0_idx != -1 && !state.world.chunks[n0_idx].is_generated do neighbors_ready = false
-			if n1_idx != -1 && !state.world.chunks[n1_idx].is_generated do neighbors_ready = false
-			if n2_idx != -1 && !state.world.chunks[n2_idx].is_generated do neighbors_ready = false
-			if n3_idx != -1 && !state.world.chunks[n3_idx].is_generated do neighbors_ready = false
-			if n4_idx != -1 && !state.world.chunks[n4_idx].is_generated do neighbors_ready = false
-			if n5_idx != -1 && !state.world.chunks[n5_idx].is_generated do neighbors_ready = false
-
-			if !neighbors_ready do continue
-
-			if chunk.is_all_solid {
-				is_hidden := true
-				
-				if n0_idx != -1 && !state.world.chunks[n0_idx].is_all_solid do is_hidden = false
-				if n1_idx != -1 && !state.world.chunks[n1_idx].is_all_solid do is_hidden = false
-				if n2_idx != -1 && !state.world.chunks[n2_idx].is_all_solid do is_hidden = false
-				if n3_idx != -1 && !state.world.chunks[n3_idx].is_all_solid do is_hidden = false
-				if n4_idx != -1 && !state.world.chunks[n4_idx].is_all_solid do is_hidden = false
-				if n5_idx != -1 && !state.world.chunks[n5_idx].is_all_solid do is_hidden = false
-				
-				if is_hidden {
-					chunk.is_meshing = false
-					chunk.is_dirty = false
-					continue
-				}
-			}
+			if n0_idx != -1 && !state.world.chunks[n0_idx].is_generated do continue
+			if n1_idx != -1 && !state.world.chunks[n1_idx].is_generated do continue
+			if n2_idx != -1 && !state.world.chunks[n2_idx].is_generated do continue
+			if n3_idx != -1 && !state.world.chunks[n3_idx].is_generated do continue
+			if n4_idx != -1 && !state.world.chunks[n4_idx].is_generated do continue
+			if n5_idx != -1 && !state.world.chunks[n5_idx].is_generated do continue
 
 			chunk.is_meshing = true
 
@@ -534,31 +520,21 @@ chunk_get_index :: proc(x, y, z: i32) -> i32 {
 
 @(private = "file")
 chunk_get_block :: proc(world: ^ecs.World, chunk_idx: int, x, y, z: i32, neighbor_indices: [6]int, neighbor_entities: [6]ecs.Entity) -> ecs.Block {
-	if x < 0 {
-		n_idx := neighbor_indices[0]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[0] do return .Air
-		return chunk_get_block_local(&world.chunks[n_idx], constants.CHUNK_SIZE + x, y, z)
-	} else if x >= constants.CHUNK_SIZE {
-		n_idx := neighbor_indices[1]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[1] do return .Air
-		return chunk_get_block_local(&world.chunks[n_idx], x - constants.CHUNK_SIZE, y, z)
-	} else if y < 0 {
-		n_idx := neighbor_indices[2]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[2] do return .Grass1
-		return chunk_get_block_local(&world.chunks[n_idx], x, constants.CHUNK_SIZE + y, z)
-	} else if y >= constants.CHUNK_SIZE {
-		n_idx := neighbor_indices[3]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[3] do return .Air
-		return chunk_get_block_local(&world.chunks[n_idx], x, y - constants.CHUNK_SIZE, z)
-	} else if z < 0 {
-		n_idx := neighbor_indices[4]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[4] do return .Air
-		return chunk_get_block_local(&world.chunks[n_idx], x, y, constants.CHUNK_SIZE + z)
-	} else if z >= constants.CHUNK_SIZE {
-		n_idx := neighbor_indices[5]
-		if n_idx == -1 || world.entities[n_idx] != neighbor_entities[5] do return .Air
-		return chunk_get_block_local(&world.chunks[n_idx], x, y, z - constants.CHUNK_SIZE)
-	}
+	n_0 := neighbor_indices[0] >= 0 ? &world.chunks[neighbor_indices[0]] : nil
+	n_1 := neighbor_indices[1] >= 0 ? &world.chunks[neighbor_indices[1]] : nil
+	n_2 := neighbor_indices[2] >= 0 ? &world.chunks[neighbor_indices[2]] : nil
+	n_3 := neighbor_indices[3] >= 0 ? &world.chunks[neighbor_indices[3]] : nil
+	n_4 := neighbor_indices[4] >= 0 ? &world.chunks[neighbor_indices[4]] : nil
+	n_5 := neighbor_indices[5] >= 0 ? &world.chunks[neighbor_indices[5]] : nil
+
+	if x < 0 && n_0 != nil                     do return chunk_get_block_local(n_0, constants.CHUNK_SIZE + x, y, z)
+	if x >= constants.CHUNK_SIZE && n_1 != nil do return chunk_get_block_local(n_1, constants.CHUNK_SIZE - x, y, z)
+
+	if y < 0 && n_2 != nil                     do return chunk_get_block_local(n_2, x, constants.CHUNK_SIZE + y, z)
+	if y >= constants.CHUNK_SIZE && n_3 != nil do return chunk_get_block_local(n_3, x, constants.CHUNK_SIZE - y, z)
+
+	if z < 0 && n_4 != nil                     do return chunk_get_block_local(n_4, x, y, constants.CHUNK_SIZE + z)
+	if z >= constants.CHUNK_SIZE && n_5 != nil do return chunk_get_block_local(n_5, x, y, constants.CHUNK_SIZE - z)
 
 	return chunk_get_block_local(&world.chunks[chunk_idx], x, y, z)
 }
