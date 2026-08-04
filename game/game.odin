@@ -14,6 +14,7 @@ default_shader_src := #load("../assets/shaders/default.wgsl")
 chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
 
 teapot_vox := #load("../assets/objects/teapot.vox")
+cactus_vox := #load("../assets/objects/cactus.vox")
 
 GameState :: struct {
 	assets:   Assets,
@@ -123,11 +124,12 @@ game_awake :: proc(state: ^GameState) {
 	// 	light2,
 	// 	{mesh = string(quad_mesh), material = string(default_material)},
 	// )
+
+	assets_register_voxel_prefab(&state.assets, "tree", vox_model_load(teapot_vox))
+	assets_register_voxel_prefab(&state.assets, "cactus", vox_model_load(cactus_vox))
 	
 	spawn_player(state)
-	biome_catalog_init()
-
-	assets_register_voxel_prefab(&state.assets, "teapot", vox_model_load(teapot_vox))
+	biome_catalog_init(state)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
