@@ -9,10 +9,6 @@ import "../ecs"
 import "../renderer"
 import "../libs/fast_noise"
 
-terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))
-temp_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JBgAAKIVECAY@BQ16NwvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
-humid_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JC@BHpECAY@BQFK5HvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
-
 system_chunk_management :: proc(state: ^GameState) {
 	player_pos: linalg.Vector3f32
 	player_found := false
@@ -192,11 +188,11 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			n5_idx := get_chunk_at(state.world, t.position + {0  , 0  , cs})
 
 			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n1 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n2 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n3 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n4 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n5 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+			n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
+			n2 := n2_idx >= 0 ? &state.world.chunks[n2_idx] : nil
+			n3 := n3_idx >= 0 ? &state.world.chunks[n3_idx] : nil
+			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
+			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
 
 			if n0 == nil || !n0.is_generated do continue
 			if n1 == nil || !n1.is_generated do continue
@@ -206,12 +202,8 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			if n5 == nil || !n5.is_generated do continue
 
 			if chunk.is_all_solid {
-				if n0.is_all_solid &&
-				   n1.is_all_solid &&
-				   n2.is_all_solid &&
-				   n3.is_all_solid &&
-				   n4.is_all_solid &&
-				   n5.is_all_solid {
+				if n0.is_all_solid
+				   {
 					chunk.is_meshing = false
 					chunk.is_dirty = false
 					continue
