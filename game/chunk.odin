@@ -149,6 +149,9 @@ system_chunk_generate :: proc(state: ^GameState) {
 			task_data.world = state.world
 			task_data.entity = entity
 			task_data.chunk_pos = t.position
+			task_data.terrain_node = terrain_node
+			task_data.temp_node = temp_node
+			task_data.humid_node = humid_node
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_decoration, task_data, 0)
 			continue

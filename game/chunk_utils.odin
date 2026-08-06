@@ -224,14 +224,14 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 }
 
 @(private)
-stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
-	world_position: linalg.Vector3f32,
-	chunk_base: linalg.Vector3f32,
+world_stamp_prefab :: proc(
+	world: ^ecs.World,
+	chunk: ^ecs.ChunkComponent,
+	chunk_global_pos: linalg.Vector3f32,
+	chunk_local_position: [3]i32,
+	prefab: ^VoxelPrefab,
 ) -> i32 {
-	local_start_x := i32(world_position.x - chunk_base.x)
-	local_start_y := i32(world_position.y - chunk_base.y)
-	local_start_z := i32(world_position.z - chunk_base.z)
-
+	local_start := chunk_local_position
 	blocks_stamped: i32 = 0
 
 	palette_remap := make([]int, len(prefab.palette), context.temp_allocator)
@@ -242,18 +242,23 @@ stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
 		palette_remap[p_idx] = chunk_get_or_add_palette_idx(chunk, p_block)
 	}
 
+	offset_x := i32(prefab.width / 2)
+	offset_z := i32(prefab.depth / 2)
+
 	for py in 0 ..< prefab.height {
 		for pz in 0 ..< prefab.depth {
 			for px in 0 ..< prefab.width {
-				cx := local_start_x + px
-				cy := local_start_y + py
-				cz := local_start_z + pz
+				lx := local_start.x + px
+				ly := local_start.y + py
+				lz := local_start.z + pz
 
-				if cx < 0 || cx >= constants.CHUNK_SIZE ||
-				   cy < 0 || cy >= constants.CHUNK_SIZE ||
-				   cz < 0 || cz >= constants.CHUNK_SIZE {
-					continue
-				}
+				block_world_x := chunk_global_pos.x + f32(lx) * constants.BLOCK_SIZE
+				block_world_y := chunk_global_pos.y + f32(ly) * constants.BLOCK_SIZE
+				block_world_z := chunk_global_pos.z + f32(lz) * constants.BLOCK_SIZE
+
+				cx := (lx % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
+				cy := (ly % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
+				cz := (lz % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
 
 				idx := px + (py * prefab.width) + (pz * prefab.width * prefab.height)
 				vox_color_index := prefab.blocks[idx]

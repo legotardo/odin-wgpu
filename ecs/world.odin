@@ -43,8 +43,6 @@ world_init :: proc(allocator := context.allocator) -> ^World {
 	world.entities = make([dynamic]Entity, allocator)
 	world.free_indices = make([dynamic]u32, allocator)
 
-	world.render_distance = 4
-
 	return world
 }
 

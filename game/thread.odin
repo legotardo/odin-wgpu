@@ -31,6 +31,10 @@ ChunkGenDecorationData :: struct {
 	entity: ecs.Entity,
 	world: ^ecs.World,
 	chunk_pos: linalg.Vector3f32,
+
+	terrain_node: rawptr,
+	temp_node: rawptr,
+	humid_node: rawptr,
 }
 
 TASKS_LIMIT :: 500

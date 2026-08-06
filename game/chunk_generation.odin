@@ -27,17 +27,17 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 
 	chunk_size := constants.CHUNK_SIZE
 	block_size := constants.BLOCK_SIZE
-	chunk_base_x := f32(math.round(data.chunk_pos.x / block_size))
-	chunk_base_y := i32(math.round(data.chunk_pos.y / block_size))
-	chunk_base_z := f32(math.round(data.chunk_pos.z / block_size))
+	chunk_start_x := f32(math.round(data.chunk_pos.x / block_size))
+	chunk_start_y := i32(math.round(data.chunk_pos.y / block_size))
+	chunk_start_z := f32(math.round(data.chunk_pos.z / block_size))
 
 	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 
-	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed + 1, nil)
-	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_base_x, chunk_base_z, chunk_size, chunk_size, 1, 1, seed + 2, nil)
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
 
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
@@ -57,11 +57,11 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 			biome_id := biome_matrix[humid_idx][temp_idx]
 			config := biome_catalog[biome_id]
 
-			global_x := i32(chunk_base_x) + x
-			global_z := i32(chunk_base_z) + z
+			global_x := i32(chunk_start_x) + x
+			global_z := i32(chunk_start_z) + z
 
 			for y in 0 ..< chunk_size {
-				world_block_y := chunk_base_y + y
+				world_block_y := chunk_start_y + y
 
 				if world_block_y <= surface_block_y {
 					block_to_place: ecs.Block = .Air
@@ -81,71 +81,6 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 		}
 	}
 
-	// for z in 0 ..< chunk_size {
-	// 	for x in 0 ..< chunk_size {
-	// 		idx := z * chunk_size + x
-
-	// 		temp_idx := biome_noise_to_index_threshold(temp_buffer[idx])
-	// 		humid_idx := biome_noise_to_index_threshold(humid_buffer[idx])
-	// 		biome_id := biome_matrix[humid_idx][temp_idx]
-	// 		config := biome_catalog[biome_id]
-
-	// 		if len(config.props) == 0 do continue
-
-	// 		global_x := i32(chunk_base_x) + x
-	// 		global_z := i32(chunk_base_z) + z
-
-	// 		spawn_roll := biome_spatial_hash_f32(global_x, global_z, seed + 999)
-
-	// 		for prop in config.props {
-	// 			if spawn_roll < prop.rarity {
-	// 				if prop.prefab == nil do break
-
-	// 				can_spawn := true
-	// 				if prop.min_spacing > 0 {
-	// 					spacing_loop: for sz in -prop.min_spacing ..= prop.min_spacing {
-	// 						for sx in -prop.min_spacing ..= prop.min_spacing {
-	// 							if sx == 0 && sz == 0 do continue
-
-	// 							nx := global_x + sx
-	// 							nz := global_z + sz
-								
-	// 							n_roll := biome_spatial_hash_f32(nx, nz, seed + 999)
-
-	// 							if n_roll < prop.rarity && n_roll < spawn_roll {
-	// 								can_spawn = false
-	// 								break spacing_loop
-	// 							}
-	// 						}
-	// 					}
-	// 				}
-
-	// 				if !can_spawn do break
-
-	// 				terrain_height_raw := terrain_buffer[idx]
-	// 				surface_block_y := i32(BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE))
-
-	// 				world_x := chunk_base_x + f32(x)
-	// 				world_y := f32(surface_block_y + 1)
-	// 				world_z := chunk_base_z + f32(z)
-
-	// 				tree_world_x := world_x - f32(prop.prefab.width / 2)
-	// 				tree_world_z := world_z - f32(prop.prefab.depth / 2)
-
-	// 				stamped := stamp_prefab(
-	// 					chunk,
-	// 					prop.prefab,
-	// 					{tree_world_x, world_y, tree_world_z},
-	// 					{chunk_base_x, f32(chunk_base_y), chunk_base_z},
-	// 				)
-
-	// 				blocks_stamped += stamped
-	// 				break
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	max_blocks := chunk_size * chunk_size * chunk_size
 	if blocks_placed == 0 {
 		chunk.is_empty = true
@@ -161,4 +96,74 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	entity_index := ecs.entity_index(data.entity)
 
 	chunk := &data.world.chunks[entity_index]
+
+	seed: i32 = 12345
+
+	chunk_size := constants.CHUNK_SIZE
+	block_size := constants.BLOCK_SIZE
+	chunk_start_x := f32(math.round(data.chunk_pos.x / block_size))
+	chunk_start_y := f32(math.round(data.chunk_pos.y / block_size))
+	chunk_start_z := f32(math.round(data.chunk_pos.z / block_size))
+
+	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
+
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+
+	BASE_HEIGHT: f32 = 40.0
+	HEIGHT_AMPLITUDE: f32 = 48.0
+
+	blocks_placed: i32 = 0
+	for z in 0 ..< chunk_size {
+		for x in 0 ..< chunk_size {
+			idx := z * chunk_size + x
+
+			temp_idx := biome_noise_to_index_threshold(temp_buffer[idx])
+			humid_idx := biome_noise_to_index_threshold(humid_buffer[idx])
+			
+			biome_id := biome_matrix[humid_idx][temp_idx]
+			config := biome_catalog[biome_id]
+
+			if len(config.props) == 0 do continue
+
+
+			global_x := i32(chunk_start_x) + x
+			global_z := i32(chunk_start_z) + z
+
+			spawn_roll := biome_spatial_hash_f32(global_x, global_z, seed)
+
+			terrain_height_raw := terrain_buffer[idx]
+			surface_block_y := i32(BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE))
+			local_surface_y := surface_block_y - i32(chunk_start_y)
+
+			if local_surface_y < 0 || local_surface_y >= chunk_size do continue
+
+			for prop in config.props {
+				if spawn_roll < prop.rarity {
+					if prop.prefab == nil do break
+
+					if chunk_get_block_local(chunk, x, local_surface_y, z) == .Air do break
+
+					y := local_surface_y + 1
+
+					blocks_placed += world_stamp_prefab(
+						data.world,
+						chunk,
+						data.chunk_pos, 
+						{ x, y, z },
+						prop.prefab,
+					)
+
+					break
+				}
+			}
+		}
+	}
+
+	if chunk.is_empty && blocks_placed > 0 {
+		chunk.is_empty = false
+	}
 }
