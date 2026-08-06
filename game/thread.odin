@@ -49,7 +49,18 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 			chunk := &data.world.chunks[entity_index]
 			assert(chunk.state == .DoingTerrain)
 
-			chunk.state = .PendingMesh
+			chunk.state = .PendingDecoration
+			free(data)
+		} else if task.procedure == chunk_generate_decoration {
+			data := cast(^ChunkGenDecorationData)task.data
+			entity_index := ecs.entity_index(data.entity)
+
+			chunk := &data.world.chunks[entity_index]
+			assert(chunk.state == .DoingDecoration)
+
+			// If at this point, we dont have anything useful to show
+			// we can ignore the expensive mesh step
+			chunk.state = chunk.is_empty ? .Done : .PendingMesh
 			free(data)
 		} else if task.procedure == chunk_mesh_task {
 			data := cast(^ChunkTaskData)task.data
@@ -69,19 +80,10 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 				})
 			}
 
-			chunk.state = .PendingDecoration
+			chunk.state = .Done
 
 			delete(data.vertices)
 			delete(data.indices)
-			free(data)
-		} else if task.procedure == chunk_generate_decoration {
-			data := cast(^ChunkGenDecorationData)task.data
-			entity_index := ecs.entity_index(data.entity)
-
-			chunk := &data.world.chunks[entity_index]
-			assert(chunk.state == .DoingDecoration)
-
-			chunk.state = .Done
 			free(data)
 		}
 

@@ -7,7 +7,13 @@ import "core:thread"
 import "../constants"
 import "../ecs"
 
-system_chunk_management :: proc(state: ^GameState) {
+// Chunk states cycle
+// PendingTerrain > DoingTerrain
+// PendingDecoration > DoingDecoration
+// PendingMesh > DoingMesh
+// Done > PendingDelete > DoingDelete
+
+system_chunk_spawner :: proc(state: ^GameState) {
 	player_pos: linalg.Vector3f32
 	player_found := false
 
@@ -132,7 +138,7 @@ system_chunk_management :: proc(state: ^GameState) {
 	}
 }
 
-system_generate_chunk :: proc(state: ^GameState) {
+system_chunk_generate :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
 	for i in 0 ..< len(state.world.entities) {
@@ -141,6 +147,8 @@ system_generate_chunk :: proc(state: ^GameState) {
 		entity := state.world.entities[i]
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
+
+		desired_lod: i32 = 1
 
 		if chunk.state == .PendingTerrain {
 			chunk.state = .DoingTerrain
@@ -168,35 +176,26 @@ system_generate_chunk :: proc(state: ^GameState) {
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_decoration, task_data, 0)
 			continue
 		}
-	}
-}
 
-system_generate_chunk_mesh :: proc(state: ^GameState) {
-	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+		if chunk.state == .PendingMesh || chunk.state == .Done {
+			cam_pos := game_get_camera_eye(state)
+			diff := t.position - cam_pos
+			dist_sq := linalg.dot(diff, diff)
 
-	cam_pos := game_get_camera_eye(state)
-
-	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & mask) != mask do continue
-
-		chunk := &state.world.chunks[i]
-		t := &state.world.transforms[i]
-		
-		diff := t.position - cam_pos
-		dist_sq := linalg.dot(diff, diff)
-
-		desired_lod: i32 = 1
-		if dist_sq > 1024*1024 {
-			desired_lod = 8
-		} else if dist_sq > 512*512 {
-			desired_lod = 4
-		} else if dist_sq > 256*256 {
-			desired_lod = 2
+			if dist_sq > 1024*1024 {
+				desired_lod = 8
+			} else if dist_sq > 512*512 {
+				desired_lod = 4
+			} else if dist_sq > 256*256 {
+				desired_lod = 2
+			}
 		}
 
-		if chunk.current_lod != desired_lod && chunk.state == .Done {
-			chunk.current_lod = desired_lod
-			chunk.state = .PendingMesh
+		if chunk.state == .Done {
+			if chunk.current_lod != desired_lod {
+				chunk.current_lod = desired_lod
+				chunk.state = .PendingMesh
+			}
 		}
 
 		if chunk.state == .PendingMesh {
