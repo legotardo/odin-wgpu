@@ -140,6 +140,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	system_chunk_management(state)
 	system_generate_chunk(state)
 	system_generate_chunk_mesh(state)
+
 	system_resolve_thread_tasks(state)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
