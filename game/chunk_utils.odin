@@ -69,17 +69,7 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Blo
 		chunk_repack(chunk)
 	}
 
-	if chunk.bits_per_block > 0 {
-		idx := world_get_chunk_index(x, y, z)
-		blocks_per_u64 := 64 / i32(chunk.bits_per_block)
-		data_idx := idx / blocks_per_u64
-		bit_offset := uint(idx % blocks_per_u64) * uint(chunk.bits_per_block)
-
-		mask := (u64(1) << uint(chunk.bits_per_block)) - 1
-
-		chunk.packed_blocks[data_idx] &= ~(mask << bit_offset)
-		chunk.packed_blocks[data_idx] |= (u64(palette_idx) & mask) << bit_offset
-	}
+	chunk_set_block_fast(chunk, x, y, z, palette_idx)
 }
 
 @(private = "file")
@@ -231,54 +221,44 @@ world_stamp_prefab :: proc(
 	chunk_local_position: [3]i32,
 	prefab: ^VoxelPrefab,
 ) -> i32 {
-	local_start := chunk_local_position
 	blocks_stamped: i32 = 0
 
-	palette_remap := make([]int, len(prefab.palette), context.temp_allocator)
-	for i in 0..<len(palette_remap) {
-		palette_remap[i] = -1
-	}
-	for p_block, p_idx in prefab.palette {
-		palette_remap[p_idx] = chunk_get_or_add_palette_idx(chunk, p_block)
-	}
+	offset_x := -i32(prefab.width / 2)
+	// offset_y := -i32(prefab.height / 2)
+	offset_z := -i32(prefab.depth / 2)
 
-	offset_x := i32(prefab.width / 2)
-	offset_z := i32(prefab.depth / 2)
+	// b_idx := chunk_get_or_add_palette_idx(chunk, .Blue)
+	// chunk_set_block_fast(chunk, chunk_local_position[0] + 0, chunk_local_position[1] + 0, chunk_local_position[2] + 0, b_idx)
+	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
 
 	for py in 0 ..< prefab.height {
 		for pz in 0 ..< prefab.depth {
 			for px in 0 ..< prefab.width {
-				lx := local_start.x + px
-				ly := local_start.y + py
-				lz := local_start.z + pz
-
-				block_world_x := chunk_global_pos.x + f32(lx) * constants.BLOCK_SIZE
-				block_world_y := chunk_global_pos.y + f32(ly) * constants.BLOCK_SIZE
-				block_world_z := chunk_global_pos.z + f32(lz) * constants.BLOCK_SIZE
-
-				cx := (lx % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
-				cy := (ly % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
-				cz := (lz % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
-
 				idx := px + (py * prefab.width) + (pz * prefab.width * prefab.height)
 				vox_color_index := prefab.blocks[idx]
-				
-				if vox_color_index == 0 do continue 
 
-				if palette_remap[vox_color_index] == -1 {
-					real_block := prefab.palette[vox_color_index]
-					palette_remap[vox_color_index] = chunk_get_or_add_palette_idx(chunk, real_block)
-				}
+				if vox_color_index == 0 do continue
 
-				target_palette_idx := palette_remap[vox_color_index]
-				
+				real_block := prefab.palette[vox_color_index]
+				target_palette_idx := chunk_get_or_add_palette_idx(chunk, real_block)
+
+				cx := chunk_local_position[0] + px + offset_x
+				cy := chunk_local_position[1] + py
+				cz := chunk_local_position[2] + pz + offset_z
+
+				if cx < 0 || cx >= constants.CHUNK_SIZE ||
+                   cy < 0 || cy >= constants.CHUNK_SIZE ||
+                   cz < 0 || cz >= constants.CHUNK_SIZE {
+                    continue
+                }
+
 				chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
 				blocks_stamped += 1
 			}
 		}
 	}
 
-	return blocks_stamped
+	return blocks_stamped;
 }
 
 
@@ -315,7 +295,7 @@ game_change_render_distance :: proc(state: ^GameState, render_distance: i32) {
 	world_build_spawn_offsets(state.world)
 }
 
-@(private = "file")
+@(private)
 chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
 	for p, i in chunk.palette {
 		if p == block do return i
@@ -327,7 +307,7 @@ chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Bloc
 	return len(chunk.palette) - 1
 }
 
-@(private = "file")
+@(private)
 chunk_set_block_fast :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_idx: int) {
 	if chunk.bits_per_block > 0 {
 		idx := world_get_chunk_index(x, y, z)

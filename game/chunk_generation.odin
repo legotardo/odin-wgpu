@@ -117,6 +117,7 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	HEIGHT_AMPLITUDE: f32 = 48.0
 
 	blocks_placed: i32 = 0
+
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
 			idx := z * chunk_size + x
@@ -129,17 +130,13 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 
 			if len(config.props) == 0 do continue
 
-
 			global_x := i32(chunk_start_x) + x
 			global_z := i32(chunk_start_z) + z
 
 			spawn_roll := biome_spatial_hash_f32(global_x, global_z, seed)
 
 			terrain_height_raw := terrain_buffer[idx]
-			surface_block_y := i32(BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE))
-			local_surface_y := surface_block_y - i32(chunk_start_y)
-
-			if local_surface_y < 0 || local_surface_y >= chunk_size do continue
+			local_surface_y := i32(BASE_HEIGHT + (terrain_height_raw * HEIGHT_AMPLITUDE))
 
 			for prop in config.props {
 				if spawn_roll < prop.rarity {
@@ -147,13 +144,11 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 
 					if chunk_get_block_local(chunk, x, local_surface_y, z) == .Air do break
 
-					y := local_surface_y + 1
-
 					blocks_placed += world_stamp_prefab(
 						data.world,
 						chunk,
 						data.chunk_pos, 
-						{ x, y, z },
+						{ x, local_surface_y + 1, z },
 						prop.prefab,
 					)
 
