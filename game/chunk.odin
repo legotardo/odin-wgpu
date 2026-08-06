@@ -9,8 +9,6 @@ import "../ecs"
 import "../renderer"
 
 system_chunk_management :: proc(state: ^GameState) {
-	build_chunk_map(state.world)
-
 	player_pos: linalg.Vector3f32
 	player_found := false
 
@@ -39,7 +37,7 @@ system_chunk_management :: proc(state: ^GameState) {
 
 	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
-	for i in 0 ..< len(state.world.entities) {
+	for i := len(state.world.entities) - 1; i >= 0; i -= 1 {
 		if (state.world.masks[i] & mask_chunk) != mask_chunk do continue
 
 		t := &state.world.transforms[i]
@@ -67,6 +65,24 @@ system_chunk_management :: proc(state: ^GameState) {
 		}
 	}
 
+	if state.world.chunk_map == nil {
+		state.world.chunk_map = make(map[[3]i32]int, 2048)
+	} else {
+		clear(&state.world.chunk_map)
+	}
+
+	for i in 0 ..< len(state.world.entities) {
+		if (state.world.masks[i] & mask_chunk) == mask_chunk {
+			t := &state.world.transforms[i]
+			coord := [3]i32{
+				i32(math.round(t.position.x / chunk_size_world)),
+				i32(math.round(t.position.y / chunk_size_world)),
+				i32(math.round(t.position.z / chunk_size_world)),
+			}
+			state.world.chunk_map[coord] = i
+		}
+	}
+
 	chunks_created_this_frame := 0
 	max_chunks_per_frame := 4
 
@@ -90,12 +106,22 @@ system_chunk_management :: proc(state: ^GameState) {
 					})
 					ecs.entity_add_chunk(state.world, chunk, { state = .PendingTerrain })
 
-					// coord := [3]i32{
-					// 	i32(math.round(target_pos.x / chunk_size_world)),
-					// 	i32(math.round(target_pos.y / chunk_size_world)),
-					// 	i32(math.round(target_pos.z / chunk_size_world)),
-					// }
-					// state.world.chunk_map[coord] = 1
+					coord := [3]i32{
+						i32(math.round(target_pos.x / chunk_size_world)),
+						i32(math.round(target_pos.y / chunk_size_world)),
+						i32(math.round(target_pos.z / chunk_size_world)),
+					}
+					
+					idx := -1
+					for e_idx in 0 ..< len(state.world.entities) {
+						if state.world.entities[e_idx] == chunk {
+							idx = e_idx
+							break
+						}
+					}
+					if idx != -1 {
+						state.world.chunk_map[coord] = idx
+					}
 
 					chunks_created_this_frame += 1
 					if chunks_created_this_frame >= max_chunks_per_frame {
@@ -150,14 +176,15 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
 		
-		dist := linalg.distance(t.position, cam_pos)
+		diff := t.position - cam_pos
+		dist_sq := linalg.dot(diff, diff)
 
 		desired_lod: i32 = 1
-		if dist > 1024 {
+		if dist_sq > 1024*1024 {
 			desired_lod = 8
-		} else if dist > 512 {
+		} else if dist_sq > 512*512 {
 			desired_lod = 4
-		} else if dist > 256 {
+		} else if dist_sq > 256*256 {
 			desired_lod = 2
 		}
 
@@ -232,26 +259,6 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			if n5_idx != -1 do task_data.neighbor_entities[5] = state.world.entities[n5_idx]
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
-		}
-	}
-}
-
-@(private = "file")
-build_chunk_map :: proc(world: ^ecs.World) {
-	world.chunk_map = make(map[[3]i32]int, 2048, context.temp_allocator)
-	
-	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
-	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-	
-	for i in 0..<len(world.entities) {
-		if (world.masks[i] & mask) == mask {
-			t := &world.transforms[i]
-			coord := [3]i32{
-				i32(math.round(t.position.x / chunk_size_world)),
-				i32(math.round(t.position.y / chunk_size_world)),
-				i32(math.round(t.position.z / chunk_size_world)),
-			}
-			world.chunk_map[coord] = i
 		}
 	}
 }
