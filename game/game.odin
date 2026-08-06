@@ -130,7 +130,7 @@ game_awake :: proc(state: ^GameState) {
 	
 	spawn_player(state)
 	biome_catalog_init(state)
-	world_build_spawn_offsets(state.world)
+	game_change_render_distance(state, state.world.render_distance)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {

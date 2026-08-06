@@ -32,7 +32,7 @@ spawn_player :: proc(state: ^GameState) {
 			up = {0, 1, 0},
 			aspect = f32(width) / f32(height),
 			fovy = 90 * linalg.RAD_PER_DEG,
-			zfar = 100,
+			zfar = 100 + f32(state.world.render_distance * 10),
 			znear = 0.1,
 		},
 	)

@@ -5,6 +5,7 @@ import "core:math"
 import "core:math/linalg"
 import "../constants"
 import "../ecs"
+import "../renderer"
 
 CHUNK_LOD_2_DIST :: 64 * 64
 CHUNK_LOD_4_DIST :: 128 * 128
@@ -275,6 +276,40 @@ stamp_prefab :: proc(chunk: ^ecs.ChunkComponent, prefab: ^VoxelPrefab,
 	return blocks_stamped
 }
 
+
+@(private)
+world_build_spawn_offsets :: proc(world: ^ecs.World) {
+	offsets := make([dynamic]ecs.ChunkOffset)
+
+    expanded_render := world.render_distance + 1
+
+	for y := -expanded_render; y <= expanded_render; y += 1 {
+		for z := -expanded_render; z <= expanded_render; z += 1 {
+			for x := -expanded_render; x <= expanded_render; x += 1 {
+				d := f32(x*x + y*y + z*z)
+				append(&offsets, ecs.ChunkOffset{x, y, z, d})
+			}
+		}
+	}
+
+	slice.sort_by(offsets[:], proc(a, b: ecs.ChunkOffset) -> bool {
+		return a.dist_sq < b.dist_sq
+	})
+
+    world.chunk_spawn_offset = offsets
+}
+
+@(private)
+game_change_render_distance :: proc(state: ^GameState, render_distance: i32) {
+	state.world.render_distance = render_distance
+
+	renderer.renderer_update_render_config_buffer(state.renderer, {
+		render_distance = render_distance,
+	})
+
+	world_build_spawn_offsets(state.world)
+}
+
 @(private = "file")
 chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
 	for p, i in chunk.palette {
@@ -300,26 +335,4 @@ chunk_set_block_fast :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_i
 		chunk.packed_blocks[data_idx] &= ~(mask << bit_offset)
 		chunk.packed_blocks[data_idx] |= (u64(palette_idx) & mask) << bit_offset
 	}
-}
-
-@(private)
-world_build_spawn_offsets :: proc(world: ^ecs.World) {
-	offsets := make([dynamic]ecs.ChunkOffset)
-
-    expanded_render := world.render_distance + 1
-
-	for y := -expanded_render; y <= expanded_render; y += 1 {
-		for z := -expanded_render; z <= expanded_render; z += 1 {
-			for x := -expanded_render; x <= expanded_render; x += 1 {
-				d := f32(x*x + y*y + z*z)
-				append(&offsets, ecs.ChunkOffset{x, y, z, d})
-			}
-		}
-	}
-
-	slice.sort_by(offsets[:], proc(a, b: ecs.ChunkOffset) -> bool {
-		return a.dist_sq < b.dist_sq
-	})
-
-    world.chunk_spawn_offset = offsets
 }

@@ -4,6 +4,10 @@ struct CameraUniform {
     _pad: f32,
 }
 
+struct RenderConfig {
+    render_distance: i32,
+}
+
 struct PaletteUniform {
     color: array<vec4<f32>, 256>,
 }
@@ -26,8 +30,9 @@ struct LightBuffer {
 }
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
-@group(0) @binding(1) var<storage, read> palette: PaletteUniform;
-@group(0) @binding(2) var<storage, read> light_data: LightBuffer;
+@group(0) @binding(1) var<uniform> render_config: RenderConfig;
+@group(0) @binding(2) var<storage, read> palette: PaletteUniform;
+@group(0) @binding(3) var<storage, read> light_data: LightBuffer;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -126,8 +131,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var final_color = vec3<f32>(base_color.rgb * ao_clamped);
 
     let dist = length(camera.position - in.world_position);
-    let fog_start = 30.0;
-    let fog_end = 50.0;
+    let fog_start = f32(render_config.render_distance * 10);
+    let fog_end = fog_start + 10;
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
     let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 

@@ -178,3 +178,31 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
 
 	return transforms
 }
+
+// // // Render Config
+RenderConfigUniform :: struct {
+	render_distance: i32,
+	_padding: [3]i32,
+}
+
+renderer_create_render_config_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
+	buffer := wgpu.DeviceCreateBuffer(
+		device,
+		&{
+			label = "render config buffer",
+			usage = {.Uniform, .CopyDst},
+			size = size_of(RenderConfigUniform),
+		},
+	)
+
+	return buffer
+}
+
+renderer_update_render_config_buffer :: proc(
+	r: ^Renderer,
+	uniform: RenderConfigUniform,
+) {
+	mat := uniform
+	wgpu.QueueWriteBuffer(r.queue, r.render_config_buffer, 0, &mat, size_of(RenderConfigUniform))
+}
+// // // Render Config
