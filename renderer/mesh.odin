@@ -4,6 +4,7 @@ import "../logger"
 import "vendor:wgpu"
 
 Mesh :: struct {
+	renderer: ^Renderer,
 	vertex_buffer: wgpu.Buffer,
 	vertex_count:  u32,
 	index_buffer:  wgpu.Buffer,
@@ -24,15 +25,23 @@ mesh_create :: proc(r: ^Renderer, vertices: []Vertex, indices: []u16) -> Mesh {
 
 	logger.info("[MESH] Mesh created")
 
+	index_count := u32(len(indices))
+	vertex_count := u32(len(vertices))
+
+	r.total_vertex_count += u64(vertex_count)
+
 	return {
 		vertex_buffer = vertex_buffer,
 		index_buffer = index_buffer,
-		index_count = u32(len(indices)),
-		vertex_count = u32(len(vertices)),
+		index_count = index_count,
+		vertex_count = vertex_count,
+		renderer = r,
 	}
 }
 
 mesh_destroy :: proc(mesh: ^Mesh) {
+	mesh.renderer.total_vertex_count -= u64(mesh.vertex_count)
+
 	wgpu.BufferRelease(mesh.vertex_buffer)
 	wgpu.BufferRelease(mesh.index_buffer)
 }

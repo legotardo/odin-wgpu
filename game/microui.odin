@@ -1,6 +1,5 @@
 package game
 
-import "core:math"
 import "core:fmt"
 import mu "vendor:microui"
 
@@ -21,8 +20,8 @@ microui_update :: proc(state: ^GameState, dt: f32) {
     ctx := state.mu_ctx
     mu.begin(ctx)
 
-    if (mu.begin_window(ctx, "Debug", { x = 10, y = 10, w = 200, h = 300 })) {
-        text := fmt.aprintf("FPS = %d | delta = %f", u32(1 / dt), dt)
+    if (mu.begin_window(ctx, "Debug", { x = 10, y = 10, w = 300, h = 300 })) {
+        text := fmt.aprintf("FPS = %d | delta = %f | vertices = %d", u32(1 / dt), dt, state.renderer.total_vertex_count)
         defer delete(text)
         mu.label(ctx, text)
         mu.button(ctx, "Button :)", .NONE, {.ALIGN_CENTER})

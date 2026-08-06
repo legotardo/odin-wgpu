@@ -38,7 +38,9 @@ Renderer :: struct {
 	microui_pipeline: wgpu.RenderPipeline,
 	microui_pipeline_layout: wgpu.PipelineLayout,
 
-	microui_ctx: ^mu.Context
+	microui_ctx: ^mu.Context,
+
+	total_vertex_count: u64,
 }
 
 RenderItem :: struct {

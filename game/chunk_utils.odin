@@ -5,6 +5,10 @@ import "core:math/linalg"
 import "../constants"
 import "../ecs"
 
+CHUNK_LOD_2_DIST :: 64 * 64
+CHUNK_LOD_4_DIST :: 128 * 128
+CHUNK_LOD_8_DIST :: 256 * 256
+
 @(private)
 chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
 	if chunk.state == .DoingDelete do return .Air

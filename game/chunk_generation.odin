@@ -1,6 +1,5 @@
 package game
 
-import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:thread"
@@ -162,8 +161,4 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	entity_index := ecs.entity_index(data.entity)
 
 	chunk := &data.world.chunks[entity_index]
-
-    if chunk.state != .DoingDecoration {
-		fmt.printf("WTF\n")
-	}
 }

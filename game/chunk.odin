@@ -148,8 +148,6 @@ system_chunk_generate :: proc(state: ^GameState) {
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
 
-		desired_lod: i32 = 1
-
 		if chunk.state == .PendingTerrain {
 			chunk.state = .DoingTerrain
 
@@ -175,18 +173,19 @@ system_chunk_generate :: proc(state: ^GameState) {
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_decoration, task_data, 0)
 			continue
-		}
+		} 
 
+		desired_lod: i32 = 1
 		if chunk.state == .PendingMesh || chunk.state == .Done {
 			cam_pos := game_get_camera_eye(state)
 			diff := t.position - cam_pos
 			dist_sq := linalg.dot(diff, diff)
 
-			if dist_sq > 1024*1024 {
+			if dist_sq > CHUNK_LOD_8_DIST {
 				desired_lod = 8
-			} else if dist_sq > 512*512 {
+			} else if dist_sq > CHUNK_LOD_4_DIST {
 				desired_lod = 4
-			} else if dist_sq > 256*256 {
+			} else if dist_sq > CHUNK_LOD_2_DIST {
 				desired_lod = 2
 			}
 		}
@@ -263,6 +262,7 @@ system_chunk_generate :: proc(state: ^GameState) {
 			if n5_idx != -1 do task_data.neighbor_entities[5] = state.world.entities[n5_idx]
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
+			continue
 		}
 	}
 }
