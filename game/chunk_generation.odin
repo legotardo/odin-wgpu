@@ -1,5 +1,6 @@
 package game
 
+import "core:fmt"
 import "core:math"
 import "core:math/linalg"
 import "core:thread"
@@ -11,14 +12,13 @@ terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZ
 temp_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JBgAAKIVECAY@BQ16NwvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
 humid_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JC@BHpECAY@BQFK5HvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
 
-chunk_generate_task :: proc(t: thread.Task) {
+chunk_generate_terrain :: proc(t: thread.Task) {
 	free_all(context.temp_allocator)
 
 	data := cast(^ChunkGenTaskData)t.data
+	entity_index := ecs.entity_index(data.entity)
 
-	if data.world.entities[data.entity_index] != data.entity do return
-
-	chunk := &data.world.chunks[data.entity_index]
+	chunk := &data.world.chunks[entity_index]
 
 	if len(chunk.palette) == 0 {
 		append(&chunk.palette, ecs.Block.Air)
@@ -152,5 +152,18 @@ chunk_generate_task :: proc(t: thread.Task) {
 		chunk.is_empty = true
 	} else if blocks_placed == max_blocks {
 		chunk.is_all_solid = true
+	}
+}
+
+chunk_generate_decoration :: proc(t: thread.Task) {
+	free_all(context.temp_allocator)
+
+	data := cast(^ChunkGenDecorationData)t.data
+	entity_index := ecs.entity_index(data.entity)
+
+	chunk := &data.world.chunks[entity_index]
+
+    if chunk.state != .DoingDecoration {
+		fmt.printf("WTF\n")
 	}
 }
