@@ -34,20 +34,27 @@ FirstPersonComponent :: struct {
 }
 
 Block :: distinct constants.Block
+ChunkState :: enum {
+	PendingTerrain,
+	DoingTerrain,
+	PendingMesh,
+	DoingMesh,
+	PendingDecoration,
+	DoingDecoration,
+	Done,
+	DoingDelete,
+}
 ChunkComponent :: struct {
 	palette: [dynamic]Block,
 	packed_blocks: []u64,
 	bits_per_block: u8,
 
 	current_lod:  i32,
+	
+	state: ChunkState,
 
-	is_generating: bool,
-	is_generated: bool,
-	is_dirty:     bool,
-	is_meshing:   bool,
-	is_empty: bool,
-	is_all_solid: bool,
-	pending_delete: bool,
+	is_empty:        bool,
+	is_all_solid:    bool,
 }
 
 LightComponent :: struct {

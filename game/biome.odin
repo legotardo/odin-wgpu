@@ -68,7 +68,7 @@ biome_catalog_init :: proc(state: ^GameState) {
 	desert_props[0] = {
 		prefab = assets_get_voxel_prefab(&state.assets, "cactus"),
 		min_spacing = 20,
-		rarity = 0.001,
+		rarity = 0.0001,
 	}
 
     biome_catalog[BiomeType.Desert] = BiomeConfig{

@@ -27,9 +27,9 @@ ChunkGenTaskData :: struct {
 	terrain_node: rawptr,
 	temp_node: rawptr,
 	humid_node: rawptr,
-
-	teapote_prefab: ^VoxelPrefab
 }
+
+ChunkStampData :: struct {}
 
 TASKS_LIMIT :: 500
 
@@ -45,10 +45,9 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			if data.world.entities[data.entity_index] == data.entity {
 				chunk := &data.world.chunks[data.entity_index]
+				assert(chunk.state == .DoingTerrain)
 
-				chunk.is_generated = true
-				chunk.is_dirty = true
-				chunk.is_generating = false
+				chunk.state = .PendingMesh
 			}
 			free(data)
 		} else if task.procedure == chunk_mesh_task {
@@ -56,6 +55,7 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			if data.world.entities[data.entity_index] == data.entity {
 				chunk := &data.world.chunks[data.entity_index]
+				assert(chunk.state == .DoingMesh)
 
 				if len(data.vertices) > 0 {
 					mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
@@ -68,8 +68,7 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 					})
 				}
 
-				chunk.is_dirty = false
-				chunk.is_meshing = false
+				chunk.state = .PendingDecoration
 			}
 
 			delete(data.vertices)

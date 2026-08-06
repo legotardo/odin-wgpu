@@ -30,6 +30,8 @@ World :: struct {
 	physics:            [MAX_ENTITIES]PhysicsComponent,
 	colliders:          [MAX_ENTITIES]ColliderComponent,
 	cameras:            [1]CameraComponent,
+
+	chunk_map: map[[3]i32]int
 }
 
 world_init :: proc(allocator := context.allocator) -> ^World {

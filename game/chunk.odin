@@ -7,9 +7,10 @@ import "core:thread"
 import "../constants"
 import "../ecs"
 import "../renderer"
-import "../libs/fast_noise"
 
 system_chunk_management :: proc(state: ^GameState) {
+	build_chunk_map(state.world)
+
 	player_pos: linalg.Vector3f32
 	player_found := false
 
@@ -37,15 +38,6 @@ system_chunk_management :: proc(state: ^GameState) {
 	limit_v := (render_dist_vertical + 2.0) * chunk_size_world
 
 	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
-	any_task_active := false
-	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & mask_chunk) == mask_chunk {
-			if state.world.chunks[i].is_generating || state.world.chunks[i].is_meshing {
-				any_task_active = true
-				break
-			}
-		}
-	}
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask_chunk) != mask_chunk do continue
@@ -59,9 +51,8 @@ system_chunk_management :: proc(state: ^GameState) {
 		c := &state.world.chunks[i]
 
 		if dist_x > limit_h || dist_y > limit_v || dist_z > limit_h {
-			c.pending_delete = true
-
-			if any_task_active do continue
+			if c.state == .DoingTerrain || c.state == .DoingMesh || c.state == .DoingDecoration do continue
+			c.state = .DoingDelete
 
 			if raw_data(c.palette) != nil {
 				delete(c.palette)
@@ -70,15 +61,9 @@ system_chunk_management :: proc(state: ^GameState) {
 				delete(c.packed_blocks)
 			}
 
-			if (state.world.masks[i] & {.RenderComponent}) == {.RenderComponent} {
-				r := &state.world.renders[i]
-
-				assets_unregister_mesh(&state.assets, fmt.tprintf("chunk_%f_%f_%f", t.position.x, t.position.y, t.position.z))
-			}
+			assets_unregister_mesh(&state.assets, fmt.tprintf("chunk_%f_%f_%f", t.position.x, t.position.y, t.position.z))
 
 			ecs.entity_destroy(state.world, state.world.entities[i])
-		} else {
-			c.pending_delete = false
 		}
 	}
 
@@ -103,7 +88,14 @@ system_chunk_management :: proc(state: ^GameState) {
 						position = target_pos,
 						scale = {1, 1, 1},
 					})
-					ecs.entity_add_chunk(state.world, chunk, {})
+					ecs.entity_add_chunk(state.world, chunk, { state = .PendingTerrain })
+
+					// coord := [3]i32{
+					// 	i32(math.round(target_pos.x / chunk_size_world)),
+					// 	i32(math.round(target_pos.y / chunk_size_world)),
+					// 	i32(math.round(target_pos.z / chunk_size_world)),
+					// }
+					// state.world.chunk_map[coord] = 1
 
 					chunks_created_this_frame += 1
 					if chunks_created_this_frame >= max_chunks_per_frame {
@@ -117,7 +109,6 @@ system_chunk_management :: proc(state: ^GameState) {
 
 system_generate_chunk :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
-	teapote_prefab := assets_get_voxel_prefab(&state.assets, "teapot")
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) != mask do continue
@@ -125,8 +116,8 @@ system_generate_chunk :: proc(state: ^GameState) {
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
 
-		if !chunk.is_generated && !chunk.is_generating && !chunk.pending_delete {
-			chunk.is_generating = true
+		if chunk.state == .PendingTerrain {
+			chunk.state = .DoingTerrain
 
 			task_data := new(ChunkGenTaskData)
 			task_data.world = state.world
@@ -137,9 +128,13 @@ system_generate_chunk :: proc(state: ^GameState) {
 			task_data.temp_node = temp_node
 			task_data.humid_node = humid_node
 
-			task_data.teapote_prefab = teapote_prefab
-
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_task, task_data, 0)
+			continue
+		}
+
+		if chunk.state == .PendingDecoration {
+			chunk.state = .Done
+			continue
 		}
 	}
 }
@@ -166,15 +161,14 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			desired_lod = 2
 		}
 
-		if chunk.current_lod != desired_lod {
+		if chunk.current_lod != desired_lod && chunk.state > .DoingMesh {
 			chunk.current_lod = desired_lod
-			chunk.is_dirty = true
+			chunk.state = .PendingMesh
 		}
 
-		if chunk.is_generated && chunk.is_dirty && !chunk.is_meshing && !chunk.pending_delete {
+		if chunk.state == .PendingMesh {
 			if chunk.is_empty {
-				chunk.is_meshing = false
-				chunk.is_dirty = false
+				chunk.state = .Done
 				continue
 			}
 
@@ -194,23 +188,27 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
 			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
 
-			if n0 == nil || !n0.is_generated do continue
-			if n1 == nil || !n1.is_generated do continue
-			if n2 == nil || !n2.is_generated do continue
-			if n3 == nil || !n3.is_generated do continue
-			if n4 == nil || !n4.is_generated do continue
-			if n5 == nil || !n5.is_generated do continue
+			if n0 == nil || n0.state <= .DoingTerrain do continue
+			if n1 == nil || n1.state <= .DoingTerrain do continue
+			if n2 == nil || n2.state <= .DoingTerrain do continue
+			if n3 == nil || n3.state <= .DoingTerrain do continue
+			if n4 == nil || n4.state <= .DoingTerrain do continue
+			if n5 == nil || n5.state <= .DoingTerrain do continue
 
+			// All solid, we dont need to fill this guy
 			if chunk.is_all_solid {
-				if n0.is_all_solid
-				   {
-					chunk.is_meshing = false
-					chunk.is_dirty = false
+				if n0.is_all_solid &&
+				   n1.is_all_solid &&
+				   n2.is_all_solid &&
+				   n3.is_all_solid &&
+				   n4.is_all_solid &&
+				   n5.is_all_solid {
+					chunk.state = .Done
 					continue
 				}
 			}
 
-			chunk.is_meshing = true
+			chunk.state = .DoingMesh
 
 			task_data := new(ChunkTaskData)
 			task_data.world = state.world
@@ -238,6 +236,25 @@ system_generate_chunk_mesh :: proc(state: ^GameState) {
 	}
 }
 
+@(private = "file")
+build_chunk_map :: proc(world: ^ecs.World) {
+	world.chunk_map = make(map[[3]i32]int, 2048, context.temp_allocator)
+	
+	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+	
+	for i in 0..<len(world.entities) {
+		if (world.masks[i] & mask) == mask {
+			t := &world.transforms[i]
+			coord := [3]i32{
+				i32(math.round(t.position.x / chunk_size_world)),
+				i32(math.round(t.position.y / chunk_size_world)),
+				i32(math.round(t.position.z / chunk_size_world)),
+			}
+			world.chunk_map[coord] = i
+		}
+	}
+}
 
 chunk_mesh_task :: proc(t: thread.Task) {
 	free_all(context.temp_allocator)
@@ -464,6 +481,8 @@ chunk_get_block :: proc(world: ^ecs.World, chunk_idx: int, x, y, z: i32, neighbo
 }
 
 chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
+	if chunk.state == .DoingDelete do return .Air
+
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -581,16 +600,16 @@ get_required_bits :: proc(palette_size: int) -> u8 {
 
 @(private = "file")
 get_chunk_at :: proc(world: ^ecs.World, pos: linalg.Vector3f32) -> int {
-	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
+	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+	
+	coord := [3]i32{
+		i32(math.round(pos.x / chunk_size_world)),
+		i32(math.round(pos.y / chunk_size_world)),
+		i32(math.round(pos.z / chunk_size_world)),
+	}
 
-	for i in 0..< len(world.entities) {
-		if (world.masks[i] & mask) != mask do continue
-
-		if math.abs(world.transforms[i].position.x - pos.x) < 0.1 &&
-		   math.abs(world.transforms[i].position.y - pos.y) < 0.1 &&
-		   math.abs(world.transforms[i].position.z - pos.z) < 0.1 {
-			return i
-		}
+	if idx, ok := world.chunk_map[coord]; ok {
+		return idx
 	}
 	
 	return -1
