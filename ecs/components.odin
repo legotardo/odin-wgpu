@@ -44,6 +44,10 @@ ChunkState :: enum {
 	Done,
 	DoingDelete,
 }
+ChunkOffset :: struct {
+	x, y, z: i32,
+	dist_sq: f32,
+}
 ChunkComponent :: struct {
 	palette: [dynamic]Block,
 	packed_blocks: []u64,

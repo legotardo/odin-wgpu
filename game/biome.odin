@@ -16,6 +16,7 @@ BiomeProp :: struct {
 	prefab: ^VoxelPrefab,
 	rarity: f32, // 0.0 - 1.0
 	min_spacing: i32,
+	max_per_chunk: i32,
 }
 
 BiomeConfig :: struct {
@@ -47,8 +48,9 @@ biome_catalog_init :: proc(state: ^GameState) {
     plains_props := make([]BiomeProp, 1)
 	plains_props[0] = {
 		prefab = assets_get_voxel_prefab(&state.assets, "tree"),
-		min_spacing = 40,
 		rarity = 0.001,
+		min_spacing = 40,
+		max_per_chunk = 100,
 	}
 
 	
@@ -67,8 +69,9 @@ biome_catalog_init :: proc(state: ^GameState) {
 	desert_props := make([]BiomeProp, 1)
 	desert_props[0] = {
 		prefab = assets_get_voxel_prefab(&state.assets, "cactus"),
-		min_spacing = 20,
 		rarity = 0.0001,
+		min_spacing = 20,
+		max_per_chunk = 100,
 	}
 
     biome_catalog[BiomeType.Desert] = BiomeConfig{

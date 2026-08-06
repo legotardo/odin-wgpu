@@ -1,5 +1,6 @@
 package game
 
+import "core:slice"
 import "core:math"
 import "core:math/linalg"
 import "../constants"
@@ -299,4 +300,26 @@ chunk_set_block_fast :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_i
 		chunk.packed_blocks[data_idx] &= ~(mask << bit_offset)
 		chunk.packed_blocks[data_idx] |= (u64(palette_idx) & mask) << bit_offset
 	}
+}
+
+@(private)
+world_build_spawn_offsets :: proc(world: ^ecs.World) {
+	offsets := make([dynamic]ecs.ChunkOffset)
+
+    expanded_render := world.render_distance + 1
+
+	for y := -expanded_render; y <= expanded_render; y += 1 {
+		for z := -expanded_render; z <= expanded_render; z += 1 {
+			for x := -expanded_render; x <= expanded_render; x += 1 {
+				d := f32(x*x + y*y + z*z)
+				append(&offsets, ecs.ChunkOffset{x, y, z, d})
+			}
+		}
+	}
+
+	slice.sort_by(offsets[:], proc(a, b: ecs.ChunkOffset) -> bool {
+		return a.dist_sq < b.dist_sq
+	})
+
+    world.chunk_spawn_offset = offsets
 }

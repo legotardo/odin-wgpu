@@ -33,12 +33,9 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	player_chunk_x := math.floor(player_pos.x / chunk_size_world) * chunk_size_world
 	player_chunk_y := math.floor(player_pos.y / chunk_size_world) * chunk_size_world
 	player_chunk_z := math.floor(player_pos.z / chunk_size_world) * chunk_size_world
-
-	render_dist_horizontal: f32 = 4.0
-	render_dist_vertical: f32 = 2.0
 	
-	limit_h := (render_dist_horizontal + 2.0) * chunk_size_world
-	limit_v := (render_dist_vertical + 2.0) * chunk_size_world
+	limit_h := f32(state.world.render_distance + 2.0) * chunk_size_world
+	limit_v := f32(state.world.render_distance + 2.0) * chunk_size_world
 
 	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
@@ -91,48 +88,30 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	chunks_created_this_frame := 0
 	max_chunks_per_frame := 4
 
-	spawn_h := int(render_dist_horizontal) + 1
-	spawn_v := int(render_dist_vertical) + 1
+	for offset in state.world.chunk_spawn_offset {
+		target_pos := linalg.Vector3f32{
+			player_chunk_x + (f32(offset.x) * chunk_size_world),
+			player_chunk_y + (f32(offset.y) * chunk_size_world),
+			player_chunk_z + (f32(offset.z) * chunk_size_world),
+		}
 
-	spawn_loop: for y := -spawn_v; y <= spawn_v; y += 1 {
-		for z := -spawn_h; z <= spawn_h; z += 1 {
-			for x := -spawn_h; x <= spawn_h; x += 1 {
-				target_pos := linalg.Vector3f32{
-					player_chunk_x + (f32(x) * chunk_size_world),
-					player_chunk_y + (f32(y) * chunk_size_world),
-					player_chunk_z + (f32(z) * chunk_size_world),
-				}
+		if world_get_chunk_at(state.world, target_pos) == -1 {
+			chunk := ecs.entity_create(state.world)
+			ecs.entity_add_transform(state.world, chunk, {
+				position = target_pos,
+				scale = {1, 1, 1},
+			})
+			ecs.entity_add_chunk(state.world, chunk, { state = .PendingTerrain })
 
-				if world_get_chunk_at(state.world, target_pos) == -1 {
-					chunk := ecs.entity_create(state.world)
-					ecs.entity_add_transform(state.world, chunk, {
-						position = target_pos,
-						scale = {1, 1, 1},
-					})
-					ecs.entity_add_chunk(state.world, chunk, { state = .PendingTerrain })
+			coord := [3]i32{
+				i32(math.round(target_pos.x / chunk_size_world)),
+				i32(math.round(target_pos.y / chunk_size_world)),
+				i32(math.round(target_pos.z / chunk_size_world)),
+			}
 
-					coord := [3]i32{
-						i32(math.round(target_pos.x / chunk_size_world)),
-						i32(math.round(target_pos.y / chunk_size_world)),
-						i32(math.round(target_pos.z / chunk_size_world)),
-					}
-					
-					idx := -1
-					for e_idx in 0 ..< len(state.world.entities) {
-						if state.world.entities[e_idx] == chunk {
-							idx = e_idx
-							break
-						}
-					}
-					if idx != -1 {
-						state.world.chunk_map[coord] = idx
-					}
-
-					chunks_created_this_frame += 1
-					if chunks_created_this_frame >= max_chunks_per_frame {
-						break spawn_loop
-					}
-				}
+			chunks_created_this_frame += 1
+			if chunks_created_this_frame >= max_chunks_per_frame {
+				break
 			}
 		}
 	}

@@ -31,7 +31,10 @@ World :: struct {
 	colliders:          [MAX_ENTITIES]ColliderComponent,
 	cameras:            [1]CameraComponent,
 
-	chunk_map: map[[3]i32]int
+	chunk_map: map[[3]i32]int,
+	chunk_spawn_offset: [dynamic]ChunkOffset,
+
+	render_distance: i32,
 }
 
 world_init :: proc(allocator := context.allocator) -> ^World {
@@ -39,6 +42,8 @@ world_init :: proc(allocator := context.allocator) -> ^World {
 
 	world.entities = make([dynamic]Entity, allocator)
 	world.free_indices = make([dynamic]u32, allocator)
+
+	world.render_distance = 4
 
 	return world
 }
