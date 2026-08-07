@@ -20,8 +20,14 @@ microui_update :: proc(state: ^GameState, dt: f32) {
     ctx := state.mu_ctx
     mu.begin(ctx)
 
-    if (mu.begin_window(ctx, "Debug", { x = 10, y = 10, w = 300, h = 300 })) {
-        text := fmt.aprintf("FPS = %d | delta = %f | vertices = %d", u32(1 / dt), dt, state.renderer.total_vertex_count)
+    if (mu.begin_window(ctx, "Debug", { x = 10, y = 10, w = 400, h = 300 })) {
+        avg_fps := frame_stats_avg_fps(&state.frame_stats)
+		low_1pct := frame_stats_1pct_low(&state.frame_stats)
+
+        text := fmt.aprintf(
+			"FPS = %d | avg = %.1f | 1%% low = %.1f | vertices = %d",
+			u32(1 / dt), avg_fps, low_1pct, state.renderer.total_vertex_count,
+		)
         defer delete(text)
         mu.label(ctx, text)
         mu.button(ctx, "Button :)", .NONE, {.ALIGN_CENTER})

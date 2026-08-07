@@ -28,6 +28,8 @@ GameState :: struct {
 	thread_pool: ^thread.Pool,
 
 	mu_ctx: ^mu.Context,
+
+	frame_stats: FrameStats,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> GameState {
@@ -136,6 +138,8 @@ game_awake :: proc(state: ^GameState) {
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
+	frame_stats_push(&state.frame_stats, dt)
+
 	system_physics(state, dt)
 	system_update_player(state, dt)
 	system_update_lights(state)

@@ -70,6 +70,8 @@ ChunkComponent :: struct {
 
 	is_empty:        bool,
 	is_all_solid:    bool,
+
+	coord: ChunkPos,
 }
 
 LightComponent :: struct {
