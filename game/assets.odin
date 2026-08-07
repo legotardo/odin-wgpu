@@ -1,5 +1,6 @@
 package game
 
+import "core:strings"
 import "../logger"
 import "../renderer"
 
@@ -56,11 +57,13 @@ assets_register_mesh :: proc(assets: ^Assets, name: string, mesh: renderer.Mesh)
 		renderer.mesh_destroy(&found_mesh)
 	}
 
-	assets.meshes[name] = mesh
+	c_name := strings.clone(name)
 
-	logger.info("[ASSETS] Mesh %s registered", name)
+	assets.meshes[c_name] = mesh
 
-	return MeshHandle(name)
+	logger.info("[ASSETS] Mesh %s registered", c_name)
+
+	return MeshHandle(c_name)
 }
 
 assets_unregister_mesh :: proc(assets: ^Assets, name: string) {

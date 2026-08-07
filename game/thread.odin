@@ -52,7 +52,8 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 		task, ok := thread.pool_pop_done(state.thread_pool)
 		if !ok do continue
 
-		if task.procedure == chunk_generate_terrain {
+		switch task.procedure {
+		case chunk_generate_terrain:
 			data := cast(^ChunkGenTaskData)task.data
 			entity_index := ecs.entity_index(data.entity)
 
@@ -61,7 +62,8 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			chunk.state = .PendingDecoration
 			free(data)
-		} else if task.procedure == chunk_generate_decoration {
+
+		case chunk_generate_decoration:
 			data := cast(^ChunkGenDecorationData)task.data
 			entity_index := ecs.entity_index(data.entity)
 
@@ -70,7 +72,8 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			chunk.state = .PendingMissingBlocks
 			free(data)
-		} else if task.procedure == chunk_generate_missing_blocks {
+
+		case chunk_generate_missing_blocks:
 			data := cast(^ChunkGenMissingBlocksData)task.data
 			entity_index := ecs.entity_index(data.entity)
 
@@ -79,7 +82,8 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			chunk.state = chunk.is_empty ? .Done : .PendingMesh
 			free(data)
-		} else if task.procedure == chunk_mesh_task {
+
+		case chunk_mesh_task:
 			data := cast(^ChunkTaskData)task.data
 			entity_index := ecs.entity_index(data.entity)
 
