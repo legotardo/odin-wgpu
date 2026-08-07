@@ -37,12 +37,23 @@ Block :: distinct constants.Block
 ChunkState :: enum {
 	PendingTerrain,
 	DoingTerrain,
-	PendingMesh,
-	DoingMesh,
+
 	PendingDecoration,
 	DoingDecoration,
+
+	PendingMissingBlocks,
+	DoingMissingBlocks,
+
+	PendingMesh,
+	DoingMesh,
+	
 	Done,
 	DoingDelete,
+}
+ChunkPos :: struct { x, y, z: i32 }
+ChunkMissingBlock :: struct {
+	x, y, z: i32,
+	block: Block,
 }
 ChunkOffset :: struct {
 	x, y, z: i32,

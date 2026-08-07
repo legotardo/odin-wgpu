@@ -132,7 +132,7 @@ game_awake :: proc(state: ^GameState) {
 	
 	spawn_player(state)
 	biome_catalog_init(state)
-	game_change_render_distance(state, 4)
+	game_change_render_distance(state, 5)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
@@ -181,10 +181,11 @@ game_update :: proc(state: ^GameState, dt: f32) {
 }
 
 game_destroy :: proc(state: ^GameState) {
-	assets_destroy(&state.assets)
-
 	thread.pool_join(state.thread_pool)
 	thread.pool_destroy(state.thread_pool)
 	free(state.thread_pool)
 	free(state.mu_ctx)
+
+	assets_destroy(&state.assets)
+	ecs.world_destroy(state.world)
 }

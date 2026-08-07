@@ -37,6 +37,12 @@ ChunkGenDecorationData :: struct {
 	humid_node: rawptr,
 }
 
+ChunkGenMissingBlocksData :: struct {
+	entity: ecs.Entity,
+	world: ^ecs.World,
+	chunk_pos: ecs.ChunkPos,
+}
+
 TASKS_LIMIT :: 500
 
 system_resolve_thread_tasks :: proc(state: ^GameState) {
@@ -62,8 +68,15 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 			chunk := &data.world.chunks[entity_index]
 			assert(chunk.state == .DoingDecoration)
 
-			// If at this point, we dont have anything useful to show
-			// we can ignore the expensive mesh step
+			chunk.state = .PendingMissingBlocks
+			free(data)
+		} else if task.procedure == chunk_generate_missing_blocks {
+			data := cast(^ChunkGenMissingBlocksData)task.data
+			entity_index := ecs.entity_index(data.entity)
+
+			chunk := &data.world.chunks[entity_index]
+			assert(chunk.state == .DoingMissingBlocks)
+
 			chunk.state = chunk.is_empty ? .Done : .PendingMesh
 			free(data)
 		} else if task.procedure == chunk_mesh_task {

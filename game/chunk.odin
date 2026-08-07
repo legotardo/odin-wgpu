@@ -3,6 +3,7 @@ package game
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:sync"
 import "core:thread"
 import "../constants"
 import "../ecs"
@@ -51,7 +52,7 @@ system_chunk_spawner :: proc(state: ^GameState) {
 		c := &state.world.chunks[i]
 
 		if dist_x > limit_h || dist_y > limit_v || dist_z > limit_h {
-			if c.state == .DoingTerrain || c.state == .DoingMesh || c.state == .DoingDecoration do continue
+			if c.state == .DoingTerrain || c.state == .DoingMesh || c.state == .DoingDecoration || c.state == .DoingMissingBlocks do continue
 			c.state = .DoingDelete
 
 			if raw_data(c.palette) != nil do delete(c.palette)
@@ -90,6 +91,24 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	player_cx := i32(math.floor(player_pos.x / cs_world))
 	player_cy := i32(math.floor(player_pos.y / cs_world))
 	player_cz := i32(math.floor(player_pos.z / cs_world))
+
+	prune_limit := state.world.render_distance + 2
+	missing_to_prune := make([dynamic]ecs.ChunkPos)
+	defer delete(missing_to_prune)
+
+	sync.mutex_lock(&state.world.chunk_missing_blocks_mu)
+	for coord, list in state.world.chunk_missing_blocks {
+		if math.abs(coord.x - player_cx) > prune_limit ||
+		   math.abs(coord.y - player_cy) > prune_limit ||
+		   math.abs(coord.z - player_cz) > prune_limit {
+			delete(list)
+			append(&missing_to_prune, coord)
+		}
+	}
+	for coord in missing_to_prune {
+		delete_key(&state.world.chunk_missing_blocks, coord)
+	}
+	sync.mutex_unlock(&state.world.chunk_missing_blocks_mu)
 
 	for offset in state.world.chunk_spawn_offset {
 		target_coord := [3]i32{
@@ -130,6 +149,24 @@ system_chunk_generate :: proc(state: ^GameState) {
 		by := i32(math.round(t.position.y / constants.BLOCK_SIZE))
 		bz := i32(math.round(t.position.z / constants.BLOCK_SIZE))
 
+		cx := bx / constants.CHUNK_SIZE
+		cy := by / constants.CHUNK_SIZE
+		cz := bz / constants.CHUNK_SIZE
+
+		n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
+		n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
+		n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
+		n3_idx := world_get_chunk_at(state.world, {cx, cy + 1, cz})
+		n4_idx := world_get_chunk_at(state.world, {cx, cy, cz - 1})
+		n5_idx := world_get_chunk_at(state.world, {cx, cy, cz + 1})
+
+		n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
+		n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
+		n2 := n2_idx >= 0 ? &state.world.chunks[n2_idx] : nil
+		n3 := n3_idx >= 0 ? &state.world.chunks[n3_idx] : nil
+		n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
+		n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
+
 		if chunk.state == .PendingTerrain {
 			chunk.state = .DoingTerrain
 
@@ -157,6 +194,25 @@ system_chunk_generate :: proc(state: ^GameState) {
 			task_data.humid_node = humid_node
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_decoration, task_data, 0)
+			continue
+		}
+	
+		if chunk.state == .PendingMissingBlocks {
+			if n0 == nil || n0.state <= .DoingDecoration do continue
+			if n1 == nil || n1.state <= .DoingDecoration do continue
+			if n2 == nil || n2.state <= .DoingDecoration do continue
+			if n3 == nil || n3.state <= .DoingDecoration do continue
+			if n4 == nil || n4.state <= .DoingDecoration do continue
+			if n5 == nil || n5.state <= .DoingDecoration do continue
+
+			chunk.state = .DoingMissingBlocks
+
+			task_data := new(ChunkGenMissingBlocksData)
+			task_data.world = state.world
+			task_data.entity = entity
+			task_data.chunk_pos = ecs.ChunkPos{cx, cy, cz}
+
+			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_missing_blocks, task_data, 0)
 			continue
 		} 
 
@@ -189,30 +245,12 @@ system_chunk_generate :: proc(state: ^GameState) {
 				continue
 			}
 
-			cx := bx / constants.CHUNK_SIZE
-			cy := by / constants.CHUNK_SIZE
-			cz := bz / constants.CHUNK_SIZE
-
-			n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
-			n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
-			n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
-			n3_idx := world_get_chunk_at(state.world, {cx, cy + 1, cz})
-			n4_idx := world_get_chunk_at(state.world, {cx, cy, cz - 1})
-			n5_idx := world_get_chunk_at(state.world, {cx, cy, cz + 1})
-
-			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
-			n2 := n2_idx >= 0 ? &state.world.chunks[n2_idx] : nil
-			n3 := n3_idx >= 0 ? &state.world.chunks[n3_idx] : nil
-			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
-			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
-
-			if n0 == nil || n0.state <= .DoingTerrain do continue
-			if n1 == nil || n1.state <= .DoingTerrain do continue
-			if n2 == nil || n2.state <= .DoingTerrain do continue
-			if n3 == nil || n3.state <= .DoingTerrain do continue
-			if n4 == nil || n4.state <= .DoingTerrain do continue
-			if n5 == nil || n5.state <= .DoingTerrain do continue
+			if n0 == nil || n0.state <= .DoingMissingBlocks do continue
+			if n1 == nil || n1.state <= .DoingMissingBlocks do continue
+			if n2 == nil || n2.state <= .DoingMissingBlocks do continue
+			if n3 == nil || n3.state <= .DoingMissingBlocks do continue
+			if n4 == nil || n4.state <= .DoingMissingBlocks do continue
+			if n5 == nil || n5.state <= .DoingMissingBlocks do continue
 
 			// All solid, we dont need to fill this guy
 			if chunk.is_all_solid {

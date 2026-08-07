@@ -1,5 +1,6 @@
 package game
 
+import "core:sync"
 import "core:slice"
 import "core:math"
 import "../constants"
@@ -201,16 +202,25 @@ world_stamp_prefab :: proc(
 	chunk_global_pos: [3]i32,
 	chunk_local_position: [3]i32,
 	prefab: ^VoxelPrefab,
-) -> i32 {
-	blocks_stamped: i32 = 0
+) -> int {
+	blocks_stamped := 0
+	// sync.mutex_lock(&chunk.mu)
+	// defer sync.mutex_unlock(&chunk.mu)
 
 	offset_x := -i32(prefab.width / 2)
 	// offset_y := -i32(prefab.height / 2)
 	offset_z := -i32(prefab.depth / 2)
 
-	// b_idx := chunk_get_or_add_palette_idx(chunk, .Blue)
-	// chunk_set_block_fast(chunk, chunk_local_position[0] + 0, chunk_local_position[1] + 0, chunk_local_position[2] + 0, b_idx)
+	// b_idx := chunk_get_or_add_palette_idx_unlocked(chunk, .Blue)
+	// chunk_set_block_fast_unlocked(chunk, 0, chunk_local_position[1], 0, b_idx)
+
+	// target_chunk_idx := world_get_chunk_at(world, {chunk_global_pos[0] - 1, chunk_global_pos[1], chunk_global_pos[2]})
+	// if target_chunk_idx != -1 {
+	// 	b_idx = chunk_get_or_add_palette_idx_unlocked(chunk, .Red)
+	// 	chunk_set_block_fast_unlocked(chunk, constants.CHUNK_SIZE - 1, chunk_local_position[1], 0, b_idx)
+	// }
 	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
+	// blocks_stamped += 1
 
 	for py in 0 ..< prefab.height {
 		for pz in 0 ..< prefab.depth {
@@ -220,28 +230,54 @@ world_stamp_prefab :: proc(
 
 				if vox_color_index == 0 do continue
 
-				real_block := prefab.palette[vox_color_index]
-				target_palette_idx := chunk_get_or_add_palette_idx(chunk, real_block)
+				block := prefab.palette[vox_color_index]
 
 				cx := chunk_local_position[0] + px + offset_x
 				cy := chunk_local_position[1] + py
 				cz := chunk_local_position[2] + pz + offset_z
 
+				block_world_x := chunk_global_pos[0] + cx
+				block_world_y := chunk_global_pos[1] + cy
+				block_world_z := chunk_global_pos[2] + cz
+
 				if cx < 0 || cx >= constants.CHUNK_SIZE ||
                    cy < 0 || cy >= constants.CHUNK_SIZE ||
                    cz < 0 || cz >= constants.CHUNK_SIZE {
-                    continue
+					target_chunk_x := i32(math.floor(f32(block_world_x) / f32(constants.CHUNK_SIZE)))
+					target_chunk_y := i32(math.floor(f32(block_world_y) / f32(constants.CHUNK_SIZE)))
+					target_chunk_z := i32(math.floor(f32(block_world_z) / f32(constants.CHUNK_SIZE)))
+
+					cx = (cx % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
+					cy = (cy % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
+					cz = (cz % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
+
+					sync.mutex_lock(&world.chunk_missing_blocks_mu)
+					key := ecs.ChunkPos{target_chunk_x, target_chunk_y, target_chunk_z}
+					list, ok := &world.chunk_missing_blocks[key]
+					if !ok {
+						world.chunk_missing_blocks[key] = make([dynamic]ecs.ChunkMissingBlock)
+						list = &world.chunk_missing_blocks[key]
+					}
+					append(list, ecs.ChunkMissingBlock{
+						block = block,
+						x = cx,
+						y = cy,
+						z = cz,
+					})
+					sync.mutex_unlock(&world.chunk_missing_blocks_mu)
+
+					continue
                 }
 
+				target_palette_idx := chunk_get_or_add_palette_idx(chunk, block)
 				chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
 				blocks_stamped += 1
 			}
 		}
 	}
 
-	return blocks_stamped;
+	return blocks_stamped
 }
-
 
 @(private)
 world_build_spawn_offsets :: proc(world: ^ecs.World) {
@@ -262,6 +298,7 @@ world_build_spawn_offsets :: proc(world: ^ecs.World) {
 		return a.dist_sq < b.dist_sq
 	})
 
+	if raw_data(world.chunk_spawn_offset) != nil do delete(world.chunk_spawn_offset)
     world.chunk_spawn_offset = offsets
 }
 

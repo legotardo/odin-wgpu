@@ -132,7 +132,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var final_color = vec3<f32>(base_color.rgb * ao_clamped);
 
     let dist = length(camera.position - in.world_position);
-    let fog_start = f32(render_config.render_distance * 10);
+    let fog_start = f32(render_config.render_distance * 9);
     let fog_end = fog_start + 10;
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
     let fog_color = vec3<f32>(0.333, 0.721, 1.0);

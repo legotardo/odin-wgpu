@@ -84,6 +84,7 @@ assets_register_voxel_prefab :: proc(
 	found_prefab, ok := assets.voxel_prefabs[name]
 	if (ok) {
 		delete(found_prefab.blocks)
+		delete(found_prefab.palette)
 	}
 
 	assets.voxel_prefabs[name] = prefab
@@ -97,7 +98,8 @@ assets_unregister_voxel_prefab :: proc(assets: ^Assets, name: string) {
 	found_prefab, ok := assets.voxel_prefabs[name]
 	if (ok) {
 		delete(found_prefab.blocks)
-		delete_key(&assets.materials, name)
+		delete(found_prefab.palette)
+		delete_key(&assets.voxel_prefabs, name)
 	}
 }
 
@@ -112,4 +114,11 @@ assets_destroy :: proc(assets: ^Assets) {
 	for _, &m in assets.materials {
 		renderer.material_destroy(&m)
 	}
+	for _, p in assets.voxel_prefabs {
+		delete(p.blocks)
+		delete(p.palette)
+	}
+	delete(assets.meshes)
+	delete(assets.materials)
+	delete(assets.voxel_prefabs)
 }

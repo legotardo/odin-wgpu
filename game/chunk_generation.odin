@@ -1,5 +1,7 @@
 package game
 
+import "core:fmt"
+import "core:sync"
 import "core:math"
 import "core:math/linalg"
 import "core:thread"
@@ -114,7 +116,7 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
 
-	blocks_placed: i32 = 0
+	blocks_placed := 0
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
@@ -140,15 +142,15 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 				if spawn_roll < prop.rarity {
 					if prop.prefab == nil do break
 
-					if chunk_get_block_local(chunk, x, local_surface_y, z) == .Air do break
+					if chunk_get_block_local(chunk, x, local_surface_y - data.chunk_pos.y, z) == .Air do break
 
-					// blocks_placed += world_stamp_prefab(
-					// 	data.world,
-					// 	chunk,
-					// 	data.chunk_pos, 
-					// 	{ x, local_surface_y + 1, z },
-					// 	prop.prefab,
-					// )
+					blocks_placed += world_stamp_prefab(
+						data.world,
+						chunk,
+						data.chunk_pos, 
+						{ x, local_surface_y + 1 - data.chunk_pos.y, z },
+						prop.prefab,
+					)
 
 					break
 				}
@@ -158,5 +160,36 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 
 	if chunk.is_empty && blocks_placed > 0 {
 		chunk.is_empty = false
+	}
+}
+
+chunk_generate_missing_blocks :: proc(t: thread.Task) {
+	free_all(context.temp_allocator)
+
+	data := cast(^ChunkGenMissingBlocksData)t.data
+	entity_index := ecs.entity_index(data.entity)
+
+	chunk := &data.world.chunks[entity_index]
+
+	sync.mutex_lock(&data.world.chunk_missing_blocks_mu)
+	key := data.chunk_pos
+	blocks_placed := 0
+	if list, ok := &data.world.chunk_missing_blocks[key]; ok {
+		for missing_block in list {
+			target_palette_idx := chunk_get_or_add_palette_idx(chunk, missing_block.block)
+			chunk_set_block_fast(chunk, missing_block.x, missing_block.y, missing_block.z, target_palette_idx)
+			blocks_placed += 1
+		}
+		delete(list^)
+		delete_key(&data.world.chunk_missing_blocks, key)
+	}
+	sync.mutex_unlock(&data.world.chunk_missing_blocks_mu)
+
+	if blocks_placed > 0 {
+		chunk.is_empty = false
+
+		if chunk.state == .Done {
+			chunk.state = .PendingMesh
+		}
 	}
 }

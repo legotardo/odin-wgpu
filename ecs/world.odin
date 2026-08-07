@@ -1,5 +1,6 @@
 package ecs
 
+import "core:sync"
 MAX_ENTITIES :: 100000
 
 ComponentType :: enum {
@@ -33,6 +34,8 @@ World :: struct {
 
 	chunk_map: map[[3]i32]int,
 	chunk_spawn_offset: [dynamic]ChunkOffset,
+	chunk_missing_blocks: map[ChunkPos][dynamic]ChunkMissingBlock,
+	chunk_missing_blocks_mu: sync.Mutex,
 
 	render_distance: i32,
 }
@@ -42,13 +45,28 @@ world_init :: proc(allocator := context.allocator) -> ^World {
 
 	world.entities = make([dynamic]Entity, allocator)
 	world.free_indices = make([dynamic]u32, allocator)
+	world.chunk_missing_blocks = make(map[ChunkPos][dynamic]ChunkMissingBlock, allocator)
 
 	return world
 }
 
 world_destroy :: proc(w: ^World) {
+	mask_chunk := ComponentMask{.ChunkComponent}
+	for i in 0 ..< len(w.entities) {
+		if (w.masks[i] & mask_chunk) == mask_chunk {
+			delete(w.chunks[i].palette)
+			delete(w.chunks[i].packed_blocks)
+		}
+	}
+
 	delete(w.entities)
 	delete(w.free_indices)
+	delete(w.chunk_map)
+	delete(w.chunk_spawn_offset)
+	for _, list in w.chunk_missing_blocks {
+		delete(list)
+	}
+	delete(w.chunk_missing_blocks)
 	free(w)
 }
 
