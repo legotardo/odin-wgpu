@@ -212,11 +212,11 @@ system_chunk_generate :: proc(state: ^GameState) {
 			diff_blocks := (t.position - cam_pos) / constants.BLOCK_SIZE
 			dist_sq := linalg.dot(diff_blocks, diff_blocks)
 
-			if dist_sq > CHUNK_LOD_8_DIST {
+			if dist_sq > constants.CHUNK_LOD_8_DIST {
 				desired_lod = 8
-			} else if dist_sq > CHUNK_LOD_4_DIST {
+			} else if dist_sq > constants.CHUNK_LOD_4_DIST {
 				desired_lod = 4
-			} else if dist_sq > CHUNK_LOD_2_DIST {
+			} else if dist_sq > constants.CHUNK_LOD_2_DIST {
 				desired_lod = 2
 			}
 		}

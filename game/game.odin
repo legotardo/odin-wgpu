@@ -134,9 +134,9 @@ game_awake :: proc(state: ^GameState) {
 	assets_register_voxel_prefab(&state.assets, "cactus", vox_model_load(cactus_vox))
 	assets_register_voxel_prefab(&state.assets, "test", vox_model_load(test_vox))
 	
-	spawn_player(state)
 	biome_catalog_init(state)
 	game_change_render_distance(state, 5)
+	spawn_player(state)
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {

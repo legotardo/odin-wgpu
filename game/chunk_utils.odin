@@ -7,10 +7,6 @@ import "../constants"
 import "../ecs"
 import "../renderer"
 
-CHUNK_LOD_2_DIST :: 256 * 256
-CHUNK_LOD_4_DIST :: 512 * 512
-CHUNK_LOD_8_DIST :: 1024 * 1024
-
 @(private)
 chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
 	if chunk.state == .DoingDelete do return .Air
