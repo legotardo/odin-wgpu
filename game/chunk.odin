@@ -28,14 +28,14 @@ system_chunk_spawner :: proc(state: ^GameState) {
 
 	if !player_found do return
 
-	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 	
-	player_chunk_x := math.floor(player_pos.x / chunk_size_world) * chunk_size_world
-	player_chunk_y := math.floor(player_pos.y / chunk_size_world) * chunk_size_world
-	player_chunk_z := math.floor(player_pos.z / chunk_size_world) * chunk_size_world
+	player_chunk_x := math.floor(player_pos.x / cs_world) * cs_world
+	player_chunk_y := math.floor(player_pos.y / cs_world) * cs_world
+	player_chunk_z := math.floor(player_pos.z / cs_world) * cs_world
 	
-	limit_h := f32(state.world.render_distance + 2.0) * chunk_size_world
-	limit_v := f32(state.world.render_distance + 2.0) * chunk_size_world
+	limit_h := f32(state.world.render_distance + 2.0) * cs_world
+	limit_v := f32(state.world.render_distance + 2.0) * cs_world
 
 	mask_chunk := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 
@@ -54,15 +54,14 @@ system_chunk_spawner :: proc(state: ^GameState) {
 			if c.state == .DoingTerrain || c.state == .DoingMesh || c.state == .DoingDecoration do continue
 			c.state = .DoingDelete
 
-			if raw_data(c.palette) != nil {
-				delete(c.palette)
-			}
-			if raw_data(c.packed_blocks) != nil {
-				delete(c.packed_blocks)
-			}
+			if raw_data(c.palette) != nil do delete(c.palette)
+			if raw_data(c.packed_blocks) != nil do delete(c.packed_blocks)
 
-			assets_unregister_mesh(&state.assets, fmt.tprintf("chunk_%f_%f_%f", t.position.x, t.position.y, t.position.z))
+			bx := i32(math.round(t.position.x / constants.BLOCK_SIZE))
+			by := i32(math.round(t.position.y / constants.BLOCK_SIZE))
+			bz := i32(math.round(t.position.z / constants.BLOCK_SIZE))
 
+			assets_unregister_mesh(&state.assets, fmt.tprintf("chunk_%d_%d_%d", bx, by, bz))
 			ecs.entity_destroy(state.world, state.world.entities[i])
 		}
 	}
@@ -77,9 +76,9 @@ system_chunk_spawner :: proc(state: ^GameState) {
 		if (state.world.masks[i] & mask_chunk) == mask_chunk {
 			t := &state.world.transforms[i]
 			coord := [3]i32{
-				i32(math.round(t.position.x / chunk_size_world)),
-				i32(math.round(t.position.y / chunk_size_world)),
-				i32(math.round(t.position.z / chunk_size_world)),
+				i32(math.round(t.position.x / cs_world)),
+				i32(math.round(t.position.y / cs_world)),
+				i32(math.round(t.position.z / cs_world)),
 			}
 			state.world.chunk_map[coord] = i
 		}
@@ -88,31 +87,31 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	chunks_created_this_frame := 0
 	max_chunks_per_frame := 4
 
+	player_cx := i32(math.floor(player_pos.x / cs_world))
+	player_cy := i32(math.floor(player_pos.y / cs_world))
+	player_cz := i32(math.floor(player_pos.z / cs_world))
+
 	for offset in state.world.chunk_spawn_offset {
-		target_pos := linalg.Vector3f32{
-			player_chunk_x + (f32(offset.x) * chunk_size_world),
-			player_chunk_y + (f32(offset.y) * chunk_size_world),
-			player_chunk_z + (f32(offset.z) * chunk_size_world),
+		target_coord := [3]i32{
+			player_cx + offset.x,
+			player_cy + offset.y,
+			player_cz + offset.z,
 		}
 
-		if world_get_chunk_at(state.world, target_pos) == -1 {
+		if world_get_chunk_at(state.world, target_coord) == -1 {
 			chunk := ecs.entity_create(state.world)
 			ecs.entity_add_transform(state.world, chunk, {
-				position = target_pos,
+				position = {
+					f32(target_coord.x) * cs_world, 
+					f32(target_coord.y) * cs_world, 
+					f32(target_coord.z) * cs_world
+				},
 				scale = {1, 1, 1},
 			})
 			ecs.entity_add_chunk(state.world, chunk, { state = .PendingTerrain })
 
-			coord := [3]i32{
-				i32(math.round(target_pos.x / chunk_size_world)),
-				i32(math.round(target_pos.y / chunk_size_world)),
-				i32(math.round(target_pos.z / chunk_size_world)),
-			}
-
 			chunks_created_this_frame += 1
-			if chunks_created_this_frame >= max_chunks_per_frame {
-				break
-			}
+			if chunks_created_this_frame >= max_chunks_per_frame do break
 		}
 	}
 }
@@ -126,6 +125,10 @@ system_chunk_generate :: proc(state: ^GameState) {
 		entity := state.world.entities[i]
 		chunk := &state.world.chunks[i]
 		t := &state.world.transforms[i]
+		
+		bx := i32(math.round(t.position.x / constants.BLOCK_SIZE))
+		by := i32(math.round(t.position.y / constants.BLOCK_SIZE))
+		bz := i32(math.round(t.position.z / constants.BLOCK_SIZE))
 
 		if chunk.state == .PendingTerrain {
 			chunk.state = .DoingTerrain
@@ -133,7 +136,7 @@ system_chunk_generate :: proc(state: ^GameState) {
 			task_data := new(ChunkGenTaskData)
 			task_data.world = state.world
 			task_data.entity = entity
-			task_data.chunk_pos = t.position
+			task_data.chunk_pos = {bx, by, bz}
 			task_data.terrain_node = terrain_node
 			task_data.temp_node = temp_node
 			task_data.humid_node = humid_node
@@ -148,7 +151,7 @@ system_chunk_generate :: proc(state: ^GameState) {
 			task_data := new(ChunkGenDecorationData)
 			task_data.world = state.world
 			task_data.entity = entity
-			task_data.chunk_pos = t.position
+			task_data.chunk_pos = {bx, by, bz}
 			task_data.terrain_node = terrain_node
 			task_data.temp_node = temp_node
 			task_data.humid_node = humid_node
@@ -160,8 +163,9 @@ system_chunk_generate :: proc(state: ^GameState) {
 		desired_lod: i32 = 1
 		if chunk.state == .PendingMesh || chunk.state == .Done {
 			cam_pos := game_get_camera_eye(state)
-			diff := t.position - cam_pos
-			dist_sq := linalg.dot(diff, diff)
+			
+			diff_blocks := (t.position - cam_pos) / constants.BLOCK_SIZE
+			dist_sq := linalg.dot(diff_blocks, diff_blocks)
 
 			if dist_sq > CHUNK_LOD_8_DIST {
 				desired_lod = 8
@@ -185,14 +189,16 @@ system_chunk_generate :: proc(state: ^GameState) {
 				continue
 			}
 
-			cs := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-			
-			n0_idx := world_get_chunk_at(state.world, t.position + {-cs, 0  , 0})
-			n1_idx := world_get_chunk_at(state.world, t.position + {cs , 0  , 0})
-			n2_idx := world_get_chunk_at(state.world, t.position + {0  , -cs, 0})
-			n3_idx := world_get_chunk_at(state.world, t.position + {0  , cs , 0})
-			n4_idx := world_get_chunk_at(state.world, t.position + {0  , 0  , -cs})
-			n5_idx := world_get_chunk_at(state.world, t.position + {0  , 0  , cs})
+			cx := bx / constants.CHUNK_SIZE
+			cy := by / constants.CHUNK_SIZE
+			cz := bz / constants.CHUNK_SIZE
+
+			n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
+			n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
+			n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
+			n3_idx := world_get_chunk_at(state.world, {cx, cy + 1, cz})
+			n4_idx := world_get_chunk_at(state.world, {cx, cy, cz - 1})
+			n5_idx := world_get_chunk_at(state.world, {cx, cy, cz + 1})
 
 			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
 			n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
@@ -210,32 +216,21 @@ system_chunk_generate :: proc(state: ^GameState) {
 
 			// All solid, we dont need to fill this guy
 			if chunk.is_all_solid {
-				if n0.is_all_solid &&
-				   n1.is_all_solid &&
-				   n2.is_all_solid &&
-				   n3.is_all_solid &&
-				   n4.is_all_solid &&
-				   n5.is_all_solid {
+				if n0.is_all_solid && n1.is_all_solid && n2.is_all_solid &&
+				   n3.is_all_solid && n4.is_all_solid && n5.is_all_solid {
 					chunk.state = .Done
 					continue
 				}
 			}
 
 			chunk.state = .DoingMesh
-
 			task_data := new(ChunkTaskData)
 			task_data.world = state.world
-			task_data.entity = state.world.entities[i]
-			task_data.chunk_pos = t.position
+			task_data.entity = entity
+			task_data.chunk_pos = {bx, by, bz}
 			task_data.lod = desired_lod
-
-			task_data.neighbor_indices[0] = n0_idx
-			task_data.neighbor_indices[1] = n1_idx
-			task_data.neighbor_indices[2] = n2_idx
-			task_data.neighbor_indices[3] = n3_idx
-			task_data.neighbor_indices[4] = n4_idx
-			task_data.neighbor_indices[5] = n5_idx
-
+			
+			task_data.neighbor_indices = {n0_idx, n1_idx, n2_idx, n3_idx, n4_idx, n5_idx}
 			if n0_idx != -1 do task_data.neighbor_entities[0] = state.world.entities[n0_idx]
 			if n1_idx != -1 do task_data.neighbor_entities[1] = state.world.entities[n1_idx]
 			if n2_idx != -1 do task_data.neighbor_entities[2] = state.world.entities[n2_idx]

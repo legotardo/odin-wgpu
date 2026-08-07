@@ -46,7 +46,7 @@ ChunkState :: enum {
 }
 ChunkOffset :: struct {
 	x, y, z: i32,
-	dist_sq: f32,
+	dist_sq: i32,
 }
 ChunkComponent :: struct {
 	palette: [dynamic]Block,

@@ -9,7 +9,7 @@ import "../renderer"
 ChunkTaskData :: struct {
 	entity: ecs.Entity,
 	world: ^ecs.World,
-	chunk_pos: linalg.Vector3f32,
+	chunk_pos: [3]i32,
 	neighbor_indices: [6]int,
 	neighbor_entities: [6]ecs.Entity,
 	vertices: []renderer.Vertex,
@@ -20,7 +20,7 @@ ChunkTaskData :: struct {
 ChunkGenTaskData :: struct {
 	entity: ecs.Entity,
 	world: ^ecs.World,
-	chunk_pos: linalg.Vector3f32,
+	chunk_pos: [3]i32,
 
 	terrain_node: rawptr,
 	temp_node: rawptr,
@@ -30,7 +30,7 @@ ChunkGenTaskData :: struct {
 ChunkGenDecorationData :: struct {
 	entity: ecs.Entity,
 	world: ^ecs.World,
-	chunk_pos: linalg.Vector3f32,
+	chunk_pos: [3]i32,
 
 	terrain_node: rawptr,
 	temp_node: rawptr,
@@ -75,7 +75,7 @@ system_resolve_thread_tasks :: proc(state: ^GameState) {
 
 			if len(data.vertices) > 0 {
 				mesh := renderer.mesh_create(state.renderer, data.vertices, data.indices)
-				mesh_handle := assets_register_mesh(&state.assets, fmt.tprintf("chunk_%f_%f_%f", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z), mesh)
+				mesh_handle := assets_register_mesh(&state.assets, fmt.tprintf("chunk_%d_%d_%d", data.chunk_pos.x, data.chunk_pos.y, data.chunk_pos.z), mesh)
 
 				ecs.entity_add_render(state.world, state.world.entities[entity_index], {
 					mesh = string(mesh_handle),

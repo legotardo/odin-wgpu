@@ -26,18 +26,17 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 	seed: i32 = 12345
 
 	chunk_size := constants.CHUNK_SIZE
-	block_size := constants.BLOCK_SIZE
-	chunk_start_x := f32(math.round(data.chunk_pos.x / block_size))
-	chunk_start_y := i32(math.round(data.chunk_pos.y / block_size))
-	chunk_start_z := f32(math.round(data.chunk_pos.z / block_size))
+	chunk_start_x := data.chunk_pos.x
+	chunk_start_y := data.chunk_pos.y
+	chunk_start_z := data.chunk_pos.z
 
 	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 
-	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
 
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
@@ -100,18 +99,17 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	seed: i32 = 12345
 
 	chunk_size := constants.CHUNK_SIZE
-	block_size := constants.BLOCK_SIZE
-	chunk_start_x := f32(math.round(data.chunk_pos.x / block_size))
-	chunk_start_y := f32(math.round(data.chunk_pos.y / block_size))
-	chunk_start_z := f32(math.round(data.chunk_pos.z / block_size))
+	chunk_start_x := data.chunk_pos.x
+	chunk_start_y := data.chunk_pos.y
+	chunk_start_z := data.chunk_pos.z
 
 	terrain_buffer := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	temp_buffer    := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 	humid_buffer   := make([]f32, constants.CHUNK_SIZE_SQUARED, context.temp_allocator)
 
-	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
-	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), chunk_start_x, chunk_start_z, chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.terrain_node, raw_data(terrain_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.temp_node, raw_data(temp_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
+	fast_noise.GenUniformGrid2D(data.humid_node, raw_data(humid_buffer), f32(chunk_start_x), f32(chunk_start_z), chunk_size, chunk_size, 1, 1, seed, nil)
 
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
@@ -144,13 +142,13 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 
 					if chunk_get_block_local(chunk, x, local_surface_y, z) == .Air do break
 
-					blocks_placed += world_stamp_prefab(
-						data.world,
-						chunk,
-						data.chunk_pos, 
-						{ x, local_surface_y + 1, z },
-						prop.prefab,
-					)
+					// blocks_placed += world_stamp_prefab(
+					// 	data.world,
+					// 	chunk,
+					// 	data.chunk_pos, 
+					// 	{ x, local_surface_y + 1, z },
+					// 	prop.prefab,
+					// )
 
 					break
 				}

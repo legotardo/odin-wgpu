@@ -182,7 +182,8 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
 // // // Render Config
 RenderConfigUniform :: struct {
 	render_distance: i32,
-	_padding: [3]i32,
+	block_size: f32,
+	_padding: [2]i32,
 }
 
 renderer_create_render_config_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
