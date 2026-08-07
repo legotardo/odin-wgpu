@@ -15,20 +15,7 @@ import "../ecs"
 // Done > PendingDelete > DoingDelete
 
 system_chunk_spawner :: proc(state: ^GameState) {
-	player_pos: linalg.Vector3f32
-	player_found := false
-
-	mask_player := ecs.ComponentMask{.TransformComponent, .FirstPersonComponent}
-	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & mask_player) == mask_player {
-			player_pos = state.world.transforms[i].position
-			player_found = true
-			break
-		}
-	}
-
-	if !player_found do return
-
+	player_pos := state.world.transforms[state.player_idx].position
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 	
 	player_chunk_x := math.floor(player_pos.x / cs_world) * cs_world
@@ -81,28 +68,28 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	player_cy := i32(math.floor(player_pos.y / cs_world))
 	player_cz := i32(math.floor(player_pos.z / cs_world))
 
-	prune_this_frame := 0
-	max_prune_per_frame := 4
-	for prune_this_frame <= max_chunks_per_frame {
-		prune_limit := state.world.render_distance + 2
-		missing_to_prune := make([dynamic]ecs.ChunkPos, context.temp_allocator)
+	prune_limit := state.world.render_distance + 2
+	missing_to_prune := make([dynamic]ecs.ChunkPos, context.temp_allocator)
 
-		sync.mutex_lock(&state.world.chunk_missing_blocks_mu)
-		for coord, list in state.world.chunk_missing_blocks {
-			if math.abs(coord.x - player_cx) > prune_limit ||
-			   math.abs(coord.y - player_cy) > prune_limit ||
-			   math.abs(coord.z - player_cz) > prune_limit {
-				delete(list)
-				append(&missing_to_prune, coord)
+	sync.mutex_lock(&state.world.chunk_missing_blocks_mu)
+	for coord, list in state.world.chunk_missing_blocks {
+		if math.abs(coord.x - player_cx) > prune_limit ||
+		   math.abs(coord.y - player_cy) > prune_limit ||
+		   math.abs(coord.z - player_cz) > prune_limit {
+			
+			delete(list)
+			append(&missing_to_prune, coord)
+
+			if len(missing_to_prune) >= 4 { 
+				break
 			}
 		}
-		for coord in missing_to_prune {
-			delete_key(&state.world.chunk_missing_blocks, coord)
-		}
-		sync.mutex_unlock(&state.world.chunk_missing_blocks_mu)
-
-		prune_this_frame += 1
 	}
+	
+	for coord in missing_to_prune {
+		delete_key(&state.world.chunk_missing_blocks, coord)
+	}
+	sync.mutex_unlock(&state.world.chunk_missing_blocks_mu)
 
 	for offset in state.world.chunk_spawn_offset {
 		target_coord := [3]i32{
@@ -136,6 +123,7 @@ system_chunk_spawner :: proc(state: ^GameState) {
 system_chunk_generate :: proc(state: ^GameState) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+	cam_pos := game_get_camera_eye(state)
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) != mask do continue
@@ -222,7 +210,6 @@ system_chunk_generate :: proc(state: ^GameState) {
 
 		desired_lod: i32 = 1
 		if chunk.state == .PendingMesh || chunk.state == .Done {
-			cam_pos := game_get_camera_eye(state)
 			diff_blocks := (t.position - cam_pos) / constants.BLOCK_SIZE
 			dist_sq := linalg.dot(diff_blocks, diff_blocks)
 

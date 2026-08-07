@@ -30,6 +30,8 @@ GameState :: struct {
 	mu_ctx: ^mu.Context,
 
 	frame_stats: FrameStats,
+
+	player_idx: u32,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> GameState {

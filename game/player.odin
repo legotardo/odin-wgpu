@@ -38,6 +38,8 @@ spawn_player :: proc(state: ^GameState) {
 	)
 
 	ecs.entity_disable_components(state.world, player, {.PhysicsComponent})
+
+	state.player_idx = ecs.entity_index(player)
 }
 
 system_update_player :: proc(state: ^GameState, dt: f32) {
