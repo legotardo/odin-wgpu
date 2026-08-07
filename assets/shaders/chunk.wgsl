@@ -6,6 +6,7 @@ struct CameraUniform {
 
 struct RenderConfig {
     render_distance: i32,
+    block_size: f32,
 }
 
 struct PaletteUniform {
@@ -52,7 +53,7 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-    let world_pos = vec4<f32>(in.position, 1.0);
+    let world_pos = vec4<f32>(in.position * render_config.block_size, 1.0);
 
     var out: VertexOutput;
 

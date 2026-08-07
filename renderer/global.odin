@@ -24,7 +24,7 @@ renderer_create_global_bind_group :: proc(
 		},
 		{
 			binding = 1,
-			visibility = {.Fragment},
+			visibility = {.Vertex, .Fragment},
 			buffer = {
 				type = .Uniform,
 				hasDynamicOffset = false,

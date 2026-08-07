@@ -138,37 +138,35 @@ generate_chunk_mesh :: proc(
 							normal_id += 1
 						}
 
-						bs := f32(constants.BLOCK_SIZE)
-
 						bottom_left := renderer.Vertex{
 							position = {
-								f32(quad_pos[0] + chunk_pos.x) * bs, 
-								f32(quad_pos[1] + chunk_pos.y) * bs, 
-								f32(quad_pos[2] + chunk_pos.z) * bs
+								f32(quad_pos[0] + chunk_pos.x), 
+								f32(quad_pos[1] + chunk_pos.y), 
+								f32(quad_pos[2] + chunk_pos.z)
 							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[0],
 						}
 						bottom_right := renderer.Vertex{
 							position = {
-								f32(quad_pos[0] + delta_u[0] + chunk_pos.x) * bs, 
-								f32(quad_pos[1] + delta_u[1] + chunk_pos.y) * bs, 
-								f32(quad_pos[2] + delta_u[2] + chunk_pos.z) * bs
+								f32(quad_pos[0] + delta_u[0] + chunk_pos.x), 
+								f32(quad_pos[1] + delta_u[1] + chunk_pos.y), 
+								f32(quad_pos[2] + delta_u[2] + chunk_pos.z)
 							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[1],
 						}
 						top_right := renderer.Vertex{
 							position = {
-								f32(quad_pos[0] + delta_u[0] + delta_v[0] + chunk_pos.x) * bs, 
-								f32(quad_pos[1] + delta_u[1] + delta_v[1] + chunk_pos.y) * bs, 
-								f32(quad_pos[2] + delta_u[2] + delta_v[2] + chunk_pos.z) * bs
+								f32(quad_pos[0] + delta_u[0] + delta_v[0] + chunk_pos.x), 
+								f32(quad_pos[1] + delta_u[1] + delta_v[1] + chunk_pos.y), 
+								f32(quad_pos[2] + delta_u[2] + delta_v[2] + chunk_pos.z)
 							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[2],
 						}
 						top_left := renderer.Vertex{
 							position = {
-								f32(quad_pos[0] + delta_v[0] + chunk_pos.x) * bs, 
-								f32(quad_pos[1] + delta_v[1] + chunk_pos.y) * bs, 
-								f32(quad_pos[2] + delta_v[2] + chunk_pos.z) * bs
+								f32(quad_pos[0] + delta_v[0] + chunk_pos.x), 
+								f32(quad_pos[1] + delta_v[1] + chunk_pos.y), 
+								f32(quad_pos[2] + delta_v[2] + chunk_pos.z)
 							},
 							material_id = mat_id, normal_id = normal_id, ao = current_mask.ao[3],
 						}

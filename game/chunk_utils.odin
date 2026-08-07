@@ -284,6 +284,7 @@ game_change_render_distance :: proc(state: ^GameState, render_distance: i32) {
 
 	renderer.renderer_update_render_config_buffer(state.renderer, {
 		render_distance = render_distance,
+		block_size = constants.BLOCK_SIZE,
 	})
 
 	world_build_spawn_offsets(state.world)
