@@ -42,6 +42,19 @@ material_create :: proc(
 		}
 	}
 
+	color_targets := [2]wgpu.ColorTargetState{
+		{
+			format = .BGRA8Unorm,
+			blend = nil,
+			writeMask = wgpu.ColorWriteMaskFlags_All,
+		},
+		{
+			format = .RGBA16Float,
+			blend = nil,
+			writeMask = wgpu.ColorWriteMaskFlags_All,
+		},
+	}
+
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		r.device,
 		&{
@@ -56,11 +69,8 @@ material_create :: proc(
 			fragment = &{
 				module = shader_module,
 				entryPoint = "fs_main",
-				targetCount = 1,
-				targets = &wgpu.ColorTargetState {
-					format = .BGRA8Unorm,
-					writeMask = wgpu.ColorWriteMaskFlags_All,
-				},
+				targetCount = len(color_targets),
+				targets = raw_data(color_targets[:])
 			},
 			primitive = {
 				topology = .TriangleList,

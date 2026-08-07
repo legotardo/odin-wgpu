@@ -265,18 +265,6 @@ microui_create_pipeline :: proc(device: wgpu.Device, bind_group_layouts: ^wgpu.B
 				cullMode = .None,
 			},
 			multisample = {count = 1, mask = 0xFFFFFFFF},
-			depthStencil = &wgpu.DepthStencilState{
-				format = .Depth24Plus,
-				depthWriteEnabled = .False,
-				depthCompare = .Always,
-				stencilFront = {},
-				stencilBack = {},
-				stencilReadMask = 0,
-				stencilWriteMask = 0,
-				depthBias = 0,
-				depthBiasSlopeScale = 0,
-				depthBiasClamp = 0,
-			}
 		},
 	)
 

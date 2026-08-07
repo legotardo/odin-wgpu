@@ -1,5 +1,6 @@
 package main
 
+import "core:math/linalg"
 import "core:fmt"
 import "vendor:wgpu"
 
@@ -124,7 +125,11 @@ update :: proc(dt: f32) {
 
 	cam_matrix := game.game_get_camera_matrix(&state.game_state)
 	cam_pos := game.game_get_camera_eye(&state.game_state)
-	renderer.renderer_update_camera_buffer(&state.renderer, { view_proj = cam_matrix, position = cam_pos })
+	renderer.renderer_update_camera_buffer(&state.renderer, { 
+		view_proj = cam_matrix,
+		view_proj_inv = linalg.matrix4_inverse(cam_matrix),
+		position = cam_pos
+	})
 
 	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
