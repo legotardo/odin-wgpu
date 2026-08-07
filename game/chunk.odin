@@ -14,6 +14,15 @@ import "../ecs"
 // PendingMesh > DoingMesh
 // Done > PendingDelete > DoingDelete
 
+NEIGHBOR_OFFSETS :: [6][3]i32{ 
+	{-1,  0,  0}, // n0: Left
+	{ 1,  0,  0}, // n1: Right
+	{ 0, -1,  0}, // n2: Bottom
+	{ 0,  1,  0}, // n3: Top
+	{ 0,  0, -1}, // n4: Back
+	{ 0,  0,  1}, // n5: Front
+}
+
 system_chunk_spawner :: proc(state: ^GameState) {
 	player_pos := state.world.transforms[state.player_idx].position
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
@@ -125,10 +134,10 @@ system_chunk_generate :: proc(state: ^GameState) {
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 	cam_pos := game_get_camera_eye(state)
 
-	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & mask) != mask do continue
-
-		chunk := &state.world.chunks[i]
+	for idx in state.world.active_chunks {
+		chunk := &state.world.chunks[idx]
+		entity := state.world.entities[idx]
+		t := &state.world.transforms[idx]
 
 		if chunk.state == .DoingTerrain ||
 			chunk.state == .DoingDecoration ||
@@ -137,9 +146,6 @@ system_chunk_generate :: proc(state: ^GameState) {
 			chunk.state == .DoingDelete {
 			continue
 		}
-
-		entity := state.world.entities[i]
-		t := &state.world.transforms[i]
 
 		cx := chunk.coord.x
 		cy := chunk.coord.y
@@ -176,26 +182,19 @@ system_chunk_generate :: proc(state: ^GameState) {
 		}
 	
 		if chunk.state == .PendingMissingBlocks {
-			n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
-			n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
-			n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
-			n3_idx := world_get_chunk_at(state.world, {cx, cy + 1, cz})
-			n4_idx := world_get_chunk_at(state.world, {cx, cy, cz - 1})
-			n5_idx := world_get_chunk_at(state.world, {cx, cy, cz + 1})
+			neighbors_ready := true
+			for offset in NEIGHBOR_OFFSETS {
+				n_idx := world_get_chunk_at(state.world, {cx + offset.x, cy + offset.y, cz + offset.z})
+				if n_idx >= 0 {
+					n := &state.world.chunks[n_idx]
+					if n.state <= .DoingDecoration {
+						neighbors_ready = false
+						break
+					}
+				}
+			}
 
-			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
-			n2 := n2_idx >= 0 ? &state.world.chunks[n2_idx] : nil
-			n3 := n3_idx >= 0 ? &state.world.chunks[n3_idx] : nil
-			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
-			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
-
-			if n0 != nil && n0.state <= .DoingDecoration do continue
-			if n1 != nil && n1.state <= .DoingDecoration do continue
-			if n2 != nil && n2.state <= .DoingDecoration do continue
-			if n3 != nil && n3.state <= .DoingDecoration do continue
-			if n4 != nil && n4.state <= .DoingDecoration do continue
-			if n5 != nil && n5.state <= .DoingDecoration do continue
+			if !neighbors_ready do continue
 
 			chunk.state = .DoingMissingBlocks
 
@@ -223,6 +222,24 @@ system_chunk_generate :: proc(state: ^GameState) {
 		}
 
 		if chunk.state == .Done {
+			if chunk.mesh_missing_mask != 0 {
+				all_neighbors_present := true
+				
+				for offset, j in NEIGHBOR_OFFSETS {
+					if (chunk.mesh_missing_mask & (1 << u8(j))) != 0 {
+						if world_get_chunk_at(state.world, {cx + offset.x, cy + offset.y, cz + offset.z}) == -1 {
+							all_neighbors_present = false
+							break
+						}
+					}
+				}
+
+				if all_neighbors_present {
+					chunk.mesh_missing_mask = 0
+					chunk.state = .PendingMesh
+				}
+			}
+
 			if chunk.current_lod != desired_lod {
 				chunk.current_lod = desired_lod
 				chunk.state = .PendingMesh
@@ -230,27 +247,6 @@ system_chunk_generate :: proc(state: ^GameState) {
 		}
 
 		if chunk.state == .PendingMesh {
-			n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
-			n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
-			n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
-			n3_idx := world_get_chunk_at(state.world, {cx, cy + 1, cz})
-			n4_idx := world_get_chunk_at(state.world, {cx, cy, cz - 1})
-			n5_idx := world_get_chunk_at(state.world, {cx, cy, cz + 1})
-
-			n0 := n0_idx >= 0 ? &state.world.chunks[n0_idx] : nil
-			n1 := n1_idx >= 0 ? &state.world.chunks[n1_idx] : nil
-			n2 := n2_idx >= 0 ? &state.world.chunks[n2_idx] : nil
-			n3 := n3_idx >= 0 ? &state.world.chunks[n3_idx] : nil
-			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
-			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
-
-			if n0 != nil && n0.state <= .DoingMissingBlocks do continue
-			if n1 != nil && n1.state <= .DoingMissingBlocks do continue
-			if n2 != nil && n2.state <= .DoingMissingBlocks do continue
-			if n3 != nil && n3.state <= .DoingMissingBlocks do continue
-			if n4 != nil && n4.state <= .DoingMissingBlocks do continue
-			if n5 != nil && n5.state <= .DoingMissingBlocks do continue
-
 			apply_missing_blocks(state.world, chunk, ecs.ChunkPos{cx, cy, cz})
 
 			if chunk.is_empty {
@@ -258,14 +254,28 @@ system_chunk_generate :: proc(state: ^GameState) {
 				continue
 			}
 
-			// All solid, we dont need to fill this guy
-			if chunk.is_all_solid {
-				if n0 != nil && n1 != nil && n2 != nil && n3 != nil && n4 != nil && n5 != nil &&
-				   n0.is_all_solid && n1.is_all_solid && n2.is_all_solid &&
-				   n3.is_all_solid && n4.is_all_solid && n5.is_all_solid {
-					chunk.state = .Done
-					continue
+			neighbor_indices: [6]int
+			all_neighbors_solid := true
+			neighbors_ready := true
+
+			for offset, j in NEIGHBOR_OFFSETS {
+				n_idx := world_get_chunk_at(state.world, {cx + offset.x, cy + offset.y, cz + offset.z})
+				neighbor_indices[j] = n_idx
+				
+				if n_idx >= 0 {
+					n := &state.world.chunks[n_idx]
+					if n.state <= .DoingMissingBlocks do neighbors_ready = false
+					if !n.is_all_solid do all_neighbors_solid = false
+				} else {
+					all_neighbors_solid = false
 				}
+			}
+
+			if !neighbors_ready do continue
+
+			if chunk.is_all_solid && all_neighbors_solid {
+				chunk.state = .Done
+				continue
 			}
 
 			chunk.state = .DoingMesh
@@ -274,14 +284,16 @@ system_chunk_generate :: proc(state: ^GameState) {
 			task_data.entity = entity
 			task_data.chunk_pos = {cx * constants.CHUNK_SIZE, cy * constants.CHUNK_SIZE, cz * constants.CHUNK_SIZE}
 			task_data.lod = desired_lod
+			task_data.neighbor_indices = neighbor_indices
 			
-			task_data.neighbor_indices = {n0_idx, n1_idx, n2_idx, n3_idx, n4_idx, n5_idx}
-			if n0_idx != -1 do task_data.neighbor_entities[0] = state.world.entities[n0_idx]
-			if n1_idx != -1 do task_data.neighbor_entities[1] = state.world.entities[n1_idx]
-			if n2_idx != -1 do task_data.neighbor_entities[2] = state.world.entities[n2_idx]
-			if n3_idx != -1 do task_data.neighbor_entities[3] = state.world.entities[n3_idx]
-			if n4_idx != -1 do task_data.neighbor_entities[4] = state.world.entities[n4_idx]
-			if n5_idx != -1 do task_data.neighbor_entities[5] = state.world.entities[n5_idx]
+			chunk.mesh_missing_mask = 0
+			for j in 0..<6 {
+				if neighbor_indices[j] != -1 {
+					task_data.neighbor_entities[j] = state.world.entities[neighbor_indices[j]]
+				} else {
+					chunk.mesh_missing_mask |= (1 << u8(j))
+				}
+			}
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_mesh_task, task_data, 0)
 			continue

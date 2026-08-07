@@ -71,6 +71,8 @@ ChunkComponent :: struct {
 	is_empty:        bool,
 	is_all_solid:    bool,
 
+	mesh_missing_mask: u8,
+
 	coord: ChunkPos,
 }
 

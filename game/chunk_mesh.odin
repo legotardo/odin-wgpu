@@ -70,7 +70,7 @@ generate_chunk_mesh :: proc(
 					block_current := world_get_chunk_block(world, chunk_idx, voxel_pos[0], voxel_pos[1], voxel_pos[2], neighbor_indices, neighbor_entities)
 					block_neighbor := world_get_chunk_block(world, chunk_idx, voxel_pos[0] + neighbor_dir[0], voxel_pos[1] + neighbor_dir[1], voxel_pos[2] + neighbor_dir[2], neighbor_indices, neighbor_entities)
 
-					if block_current != .Air && block_neighbor == .Air && is_current_inside {
+					if block_current != .Air && block_neighbor == .Air && is_current_inside && (is_neighbor_inside || neighbor_indices[axis * 2 + 1] != -1) {
 						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod
@@ -82,7 +82,7 @@ generate_chunk_mesh :: proc(
 
 						mask[mask_idx] = MaskData{block = i16(block_current), ao = {ao_bl, ao_br, ao_tr, ao_tl}}
 
-					} else if block_current == .Air && block_neighbor != .Air && is_neighbor_inside {
+					} else if block_current == .Air && block_neighbor != .Air && is_neighbor_inside && (is_current_inside || neighbor_indices[axis * 2] != -1) {
 						u_dir, v_dir := [3]i32{0,0,0}, [3]i32{0,0,0}
 						u_dir[axis_u] = lod
 						v_dir[axis_v] = lod

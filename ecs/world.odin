@@ -20,6 +20,7 @@ World :: struct {
 	entities:           [dynamic]Entity,
 	entity_generations: [MAX_ENTITIES]u32,
 	free_indices:       [dynamic]u32,
+	active_chunks:      [dynamic]u32,
 	masks:              [MAX_ENTITIES]ComponentMask,
 
 	// Components
@@ -43,9 +44,11 @@ World :: struct {
 world_init :: proc(allocator := context.allocator) -> ^World {
 	world := new(World, allocator)
 
-	world.entities = make([dynamic]Entity, allocator)
-	world.free_indices = make([dynamic]u32, allocator)
-	world.chunk_missing_blocks = make(map[ChunkPos][dynamic]ChunkMissingBlock, allocator)
+	world.entities = make([dynamic]Entity, 0, MAX_ENTITIES, allocator)
+	world.free_indices = make([dynamic]u32, 0, MAX_ENTITIES, allocator)
+	world.active_chunks = make([dynamic]u32, 0, 4096, allocator)
+	world.chunk_map = make(map[[3]i32]int, 4096, allocator) 
+	world.chunk_missing_blocks = make(map[ChunkPos][dynamic]ChunkMissingBlock, 1024, allocator)
 
 	return world
 }
@@ -96,6 +99,15 @@ entity_destroy :: proc(w: ^World, e: Entity) {
 
 	if w.entity_generations[idx] != entity_generation(e) do return
 
+	if .ChunkComponent in w.masks[idx] {
+		for i in 0..<len(w.active_chunks) {
+			if w.active_chunks[i] == idx {
+				unordered_remove(&w.active_chunks, i)
+				break
+			}
+		}
+	}
+
 	w.entity_generations[idx] += 1
 	w.masks[idx] = {}
 	append(&w.free_indices, idx)
@@ -139,6 +151,7 @@ entity_add_chunk :: proc(w: ^World, e: Entity, c: ChunkComponent) {
 	idx := entity_index(e)
 	w.chunks[idx] = c
 	w.masks[idx] += {.ChunkComponent}
+	append(&w.active_chunks, idx)
 }
 
 entity_add_light :: proc(w: ^World, e: Entity, c: LightComponent) {

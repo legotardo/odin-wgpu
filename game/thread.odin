@@ -43,7 +43,7 @@ ChunkGenMissingBlocksData :: struct {
 	chunk_pos: ecs.ChunkPos,
 }
 
-TASKS_LIMIT :: 500
+TASKS_LIMIT :: 100
 
 system_resolve_thread_tasks :: proc(state: ^GameState) {
 	current_tasks_count := 0
