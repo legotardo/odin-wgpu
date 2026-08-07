@@ -2,7 +2,6 @@ package game
 
 import "core:slice"
 import "core:math"
-import "core:math/linalg"
 import "../constants"
 import "../ecs"
 import "../renderer"
@@ -143,23 +142,17 @@ world_get_chunk_block :: proc(world: ^ecs.World, chunk_idx: u32, x, y, z: i32, n
 }
 
 @(private)
-world_get_relative_block_at :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.Block {
-	bs := constants.BLOCK_SIZE
-
-	block_x := i32(math.floor(world_pos.x / bs))
-	block_y := i32(math.floor(world_pos.y / bs))
-	block_z := i32(math.floor(world_pos.z / bs))
-
-	cx := i32(math.floor(f32(block_x) / f32(constants.CHUNK_SIZE)))
-	cy := i32(math.floor(f32(block_y) / f32(constants.CHUNK_SIZE)))
-	cz := i32(math.floor(f32(block_z) / f32(constants.CHUNK_SIZE)))
+world_get_block_at :: proc(world: ^ecs.World, world_pos: [3]i32) -> ecs.Block {
+	cx := i32(math.floor(f32(world_pos[0]) / f32(constants.CHUNK_SIZE)))
+	cy := i32(math.floor(f32(world_pos[1]) / f32(constants.CHUNK_SIZE)))
+	cz := i32(math.floor(f32(world_pos[2]) / f32(constants.CHUNK_SIZE)))
 
 	chunk_idx := world_get_chunk_at(world, {cx, cy, cz})
 	if chunk_idx == -1 do return .Air
 
-	local_x := block_x - (cx * constants.CHUNK_SIZE)
-	local_y := block_y - (cy * constants.CHUNK_SIZE)
-	local_z := block_z - (cz * constants.CHUNK_SIZE)
+	local_x := world_pos[0] - (cx * constants.CHUNK_SIZE)
+	local_y := world_pos[1] - (cy * constants.CHUNK_SIZE)
+	local_z := world_pos[2] - (cz * constants.CHUNK_SIZE)
 
 	return chunk_get_block_local(&world.chunks[chunk_idx], local_x, local_y, local_z)
 }
@@ -190,13 +183,7 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 	for y in min_y ..= max_y {
 		for z in min_z ..= max_z {
 			for x in min_x ..= max_x {
-				world_pos := linalg.Vector3f32{
-					f32(x) * constants.BLOCK_SIZE,
-					f32(y) * constants.BLOCK_SIZE,
-					f32(z) * constants.BLOCK_SIZE,
-				}
-
-				block := world_get_relative_block_at(world, world_pos)
+				block := world_get_block_at(world, {x, y, z})
 				if block != .Air {
 					return true
 				}
