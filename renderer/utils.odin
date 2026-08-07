@@ -92,50 +92,50 @@ renderer_create_depth_texture_view :: proc(device: wgpu.Device, s_config: ^wgpu.
 // // // DEPTH BUFFER
 
 // // // LIGHT
-renderer_create_light_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "light buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(u32) * 4 + size_of(LightData) * 10246,
-		},
-	)
+// renderer_create_light_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
+// 	buffer := wgpu.DeviceCreateBuffer(
+// 		device,
+// 		&{
+// 			label = "light buffer",
+// 			usage = {.Storage, .CopyDst},
+// 			size = size_of(u32) * 4 + size_of(LightData) * 10246,
+// 		},
+// 	)
 
-	return buffer
-}
+// 	return buffer
+// }
 
-renderer_update_light_buffer :: proc(
-	r: ^Renderer,
-	lights: []LightData,
-) {
-	LightBufferHeader :: struct {
-		light_count: u32,
-		_pad1:       u32,
-		_pad2:       u32,
-		_pad3:       u32,
-	}
+// renderer_update_light_buffer :: proc(
+// 	r: ^Renderer,
+// 	lights: []LightData,
+// ) {
+// 	LightBufferHeader :: struct {
+// 		light_count: u32,
+// 		_pad1:       u32,
+// 		_pad2:       u32,
+// 		_pad3:       u32,
+// 	}
 
-	header := LightBufferHeader{
-		light_count = u32(len(lights)),
-	}
+// 	header := LightBufferHeader{
+// 		light_count = u32(len(lights)),
+// 	}
 
-	wgpu.QueueWriteBuffer(
-		r.queue,
-		r.light_buffer,
-		0,
-		&header,
-		size_of(LightBufferHeader)
-	)
+// 	wgpu.QueueWriteBuffer(
+// 		r.queue,
+// 		r.light_buffer,
+// 		0,
+// 		&header,
+// 		size_of(LightBufferHeader)
+// 	)
 
-	wgpu.QueueWriteBuffer(
-		r.queue,
-		r.light_buffer,
-		u64(size_of(LightBufferHeader)),
-		raw_data(lights[:]),
-		size_of(LightData) * len(lights)
-	)
-}
+// 	wgpu.QueueWriteBuffer(
+// 		r.queue,
+// 		r.light_buffer,
+// 		u64(size_of(LightBufferHeader)),
+// 		raw_data(lights[:]),
+// 		size_of(LightData) * len(lights)
+// 	)
+// }
 // // // LIGHT
 
 // // // INSTANCE

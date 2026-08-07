@@ -28,7 +28,7 @@ World :: struct {
 	renders:            [MAX_ENTITIES]RenderComponent,
 	first_persons:      [MAX_ENTITIES]FirstPersonComponent,
 	chunks:             [MAX_ENTITIES]ChunkComponent,
-	lights:             [MAX_ENTITIES]LightComponent,
+	// lights:             [MAX_ENTITIES]LightComponent,
 	physics:            [MAX_ENTITIES]PhysicsComponent,
 	colliders:          [MAX_ENTITIES]ColliderComponent,
 	cameras:            [1]CameraComponent,
@@ -154,11 +154,11 @@ entity_add_chunk :: proc(w: ^World, e: Entity, c: ChunkComponent) {
 	append(&w.active_chunks, idx)
 }
 
-entity_add_light :: proc(w: ^World, e: Entity, c: LightComponent) {
-	idx := entity_index(e)
-	w.lights[idx] = c
-	w.masks[idx] += {.LightComponent}
-}
+// entity_add_light :: proc(w: ^World, e: Entity, c: LightComponent) {
+// 	idx := entity_index(e)
+// 	w.lights[idx] = c
+// 	w.masks[idx] += {.LightComponent}
+// }
 
 entity_add_physics :: proc(w: ^World, e: Entity, c: PhysicsComponent) {
 	idx := entity_index(e)

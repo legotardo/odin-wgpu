@@ -76,13 +76,13 @@ ChunkComponent :: struct {
 	coord: ChunkPos,
 }
 
-LightComponent :: struct {
-	light_type: renderer.LightType,
-	color: linalg.Vector3f32,
-	direction: linalg.Vector3f32,
-	intensity: f32,
-	range:     f32,
-}
+// LightComponent :: struct {
+// 	light_type: renderer.LightType,
+// 	color: linalg.Vector3f32,
+// 	direction: linalg.Vector3f32,
+// 	intensity: f32,
+// 	range:     f32,
+// }
 
 PhysicsComponent :: struct {
 	velocity: linalg.Vector3f32,

@@ -14,27 +14,9 @@ struct PaletteUniform {
     color: array<vec4<f32>, 256>,
 }
 
-struct Light {
-    position: vec3<f32>,
-    light_type: u32,
-
-    direction: vec3<f32>,
-    intensity: f32,
-
-    color: vec3<f32>,
-    range: f32,
-}
-
-struct LightBuffer {
-    light_count: u32,
-    _pad: vec3<u32>,
-    lights: array<Light>,
-}
-
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(0) @binding(1) var<uniform> render_config: RenderConfig;
 @group(0) @binding(2) var<storage, read> palette: PaletteUniform;
-@group(0) @binding(3) var<storage, read> light_data: LightBuffer;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,

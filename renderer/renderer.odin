@@ -23,7 +23,7 @@ Renderer :: struct {
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
 	render_config_buffer: wgpu.Buffer,
-	light_buffer: wgpu.Buffer,
+	// light_buffer: wgpu.Buffer,
 	instance_buffer: wgpu.Buffer,
 	microui_constant_buffer: wgpu.Buffer,
 	microui_vertex_buffer: wgpu.Buffer,
@@ -68,7 +68,7 @@ renderer_init :: proc(
 	camera_buffer := renderer_create_camera_buffer(device)
 	palette_buffer := renderer_create_palette_buffer(device)
 	render_config_buffer := renderer_create_render_config_buffer(device)
-	light_buffer := renderer_create_light_buffer(device)
+	// light_buffer := renderer_create_light_buffer(device)
 	instance_buffer := renderer_create_instance_buffer(device)
 	microui_constant_buffer := microui_create_constant_buffer(device)
 	microui_vertex_buffer := microui_create_vertex_buffer(device)
@@ -87,7 +87,7 @@ renderer_init :: proc(
 		device,
 		palette_buffer,
 		camera_buffer,
-		light_buffer,
+		// light_buffer,
 		instance_buffer,
 		render_config_buffer,
 	)
@@ -113,7 +113,7 @@ renderer_init :: proc(
 		camera_buffer = camera_buffer,
 		palette_buffer = palette_buffer,
 		depth_texture_view = depth_texture_view,
-		light_buffer = light_buffer,
+		// light_buffer = light_buffer,
 		instance_buffer = instance_buffer,
 		render_config_buffer = render_config_buffer,
 
@@ -301,7 +301,7 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.BufferRelease(r.camera_buffer)
 	wgpu.BufferRelease(r.palette_buffer)
-	wgpu.BufferRelease(r.light_buffer)
+	// wgpu.BufferRelease(r.light_buffer)
 	wgpu.BufferRelease(r.instance_buffer)
 	wgpu.BufferRelease(r.microui_constant_buffer)
 	wgpu.BufferRelease(r.microui_texture_buffer)
