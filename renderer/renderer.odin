@@ -164,14 +164,27 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 
 @(private="file")
 renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items: []RenderItem) {
-	transforms := renderer_get_instancing_items(items)
-	renderer_update_instance_buffer(r, transforms)
-	delete(transforms)
+	need_instancing := false
+	for item in items {
+		if item.should_use_instance {
+			need_instancing = true
+			break
+		}
+	}
+	if need_instancing {
+		transforms := renderer_get_instancing_items(items)
+		renderer_update_instance_buffer(r, transforms)
+		delete(transforms)
+	}
 
 	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.global_bind_group)
 
+	prev_pipeline: wgpu.RenderPipeline
 	for item, i in items {
-		wgpu.RenderPassEncoderSetPipeline(encoder, item.material.pipeline)
+		if item.material.pipeline != prev_pipeline {
+			wgpu.RenderPassEncoderSetPipeline(encoder, item.material.pipeline)
+			prev_pipeline = item.material.pipeline
+		}
 		wgpu.RenderPassEncoderSetVertexBuffer(
 			encoder,
 			0,
