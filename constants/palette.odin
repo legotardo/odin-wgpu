@@ -8,6 +8,7 @@ Block :: enum u64 {
     Sand1,
     Blue,
     Brown,
+    Red,
 }
 
 PaletteMap :: struct {
@@ -15,7 +16,7 @@ PaletteMap :: struct {
     value: u32
 }
 
-BLOCK_PALETTE_MAP :: [7]PaletteMap{
+BLOCK_PALETTE_MAP :: [8]PaletteMap{
     {.Air,    0x000000},
     {.Grass1, 0x3F9111},
     {.Grass2, 0x398210},
@@ -23,4 +24,5 @@ BLOCK_PALETTE_MAP :: [7]PaletteMap{
     {.Sand1,  0xEBC634},
     {.Blue,  0x34a2c9},
     {.Brown,  0x7d450c},
+    {.Red,  0xFF0000},
 }

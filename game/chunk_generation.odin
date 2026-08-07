@@ -142,13 +142,13 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 
 					if chunk_get_block_local(chunk, x, local_surface_y, z) == .Air do break
 
-					// blocks_placed += world_stamp_prefab(
-					// 	data.world,
-					// 	chunk,
-					// 	data.chunk_pos, 
-					// 	{ x, local_surface_y + 1, z },
-					// 	prop.prefab,
-					// )
+					blocks_placed += world_stamp_prefab(
+						data.world,
+						chunk,
+						data.chunk_pos, 
+						{ x, local_surface_y + 1, z },
+						prop.prefab,
+					)
 
 					break
 				}

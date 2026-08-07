@@ -208,36 +208,44 @@ world_stamp_prefab :: proc(
 	// offset_y := -i32(prefab.height / 2)
 	offset_z := -i32(prefab.depth / 2)
 
-	// b_idx := chunk_get_or_add_palette_idx(chunk, .Blue)
+	b_idx := chunk_get_or_add_palette_idx(chunk, .Blue)
 	// chunk_set_block_fast(chunk, chunk_local_position[0] + 0, chunk_local_position[1] + 0, chunk_local_position[2] + 0, b_idx)
-	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
-
-	for py in 0 ..< prefab.height {
-		for pz in 0 ..< prefab.depth {
-			for px in 0 ..< prefab.width {
-				idx := px + (py * prefab.width) + (pz * prefab.width * prefab.height)
-				vox_color_index := prefab.blocks[idx]
-
-				if vox_color_index == 0 do continue
-
-				real_block := prefab.palette[vox_color_index]
-				target_palette_idx := chunk_get_or_add_palette_idx(chunk, real_block)
-
-				cx := chunk_local_position[0] + px + offset_x
-				cy := chunk_local_position[1] + py
-				cz := chunk_local_position[2] + pz + offset_z
-
-				if cx < 0 || cx >= constants.CHUNK_SIZE ||
-                   cy < 0 || cy >= constants.CHUNK_SIZE ||
-                   cz < 0 || cz >= constants.CHUNK_SIZE {
-                    continue
-                }
-
-				chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
-				blocks_stamped += 1
-			}
-		}
+	chunk_set_block_fast(chunk, 0, chunk_local_position[1], 0, b_idx)
+	target_chunk_idx := world_get_chunk_at(world, {chunk_global_pos[0] - 1, chunk_global_pos[1], chunk_global_pos[2]})
+	if target_chunk_idx != -1 {
+		target_chunk := &world.chunks[target_chunk_idx]
+		b_idx = chunk_get_or_add_palette_idx(target_chunk, .Red)
+		chunk_set_block_fast(chunk, constants.CHUNK_SIZE -1, chunk_local_position[1], 0, b_idx)
 	}
+	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
+	blocks_stamped += 1
+
+	// for py in 0 ..< prefab.height {
+	// 	for pz in 0 ..< prefab.depth {
+	// 		for px in 0 ..< prefab.width {
+	// 			idx := px + (py * prefab.width) + (pz * prefab.width * prefab.height)
+	// 			vox_color_index := prefab.blocks[idx]
+
+	// 			if vox_color_index == 0 do continue
+
+	// 			real_block := prefab.palette[vox_color_index]
+	// 			target_palette_idx := chunk_get_or_add_palette_idx(chunk, real_block)
+
+	// 			cx := chunk_local_position[0] + px + offset_x
+	// 			cy := chunk_local_position[1] + py
+	// 			cz := chunk_local_position[2] + pz + offset_z
+
+	// 			if cx < 0 || cx >= constants.CHUNK_SIZE ||
+    //                cy < 0 || cy >= constants.CHUNK_SIZE ||
+    //                cz < 0 || cz >= constants.CHUNK_SIZE {
+    //                 continue
+    //             }
+
+	// 			chunk_set_block_fast(chunk, cx, cy, cz, target_palette_idx)
+	// 			blocks_stamped += 1
+	// 		}
+	// 	}
+	// }
 
 	return blocks_stamped;
 }

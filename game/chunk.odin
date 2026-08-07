@@ -207,12 +207,12 @@ system_chunk_generate :: proc(state: ^GameState) {
 			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
 			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
 
-			if n0 == nil || n0.state <= .DoingTerrain do continue
-			if n1 == nil || n1.state <= .DoingTerrain do continue
-			if n2 == nil || n2.state <= .DoingTerrain do continue
-			if n3 == nil || n3.state <= .DoingTerrain do continue
-			if n4 == nil || n4.state <= .DoingTerrain do continue
-			if n5 == nil || n5.state <= .DoingTerrain do continue
+			if n0 == nil || n0.state <= .DoingDecoration do continue
+			if n1 == nil || n1.state <= .DoingDecoration do continue
+			if n2 == nil || n2.state <= .DoingDecoration do continue
+			if n3 == nil || n3.state <= .DoingDecoration do continue
+			if n4 == nil || n4.state <= .DoingDecoration do continue
+			if n5 == nil || n5.state <= .DoingDecoration do continue
 
 			// All solid, we dont need to fill this guy
 			if chunk.is_all_solid {
