@@ -1,5 +1,6 @@
 package ecs
 
+import "core:sync"
 import "../renderer"
 import "../constants"
 import "core:math/linalg"
@@ -37,10 +38,10 @@ Block :: distinct constants.Block
 ChunkState :: enum {
 	PendingTerrain,
 	DoingTerrain,
-	PendingMesh,
-	DoingMesh,
 	PendingDecoration,
 	DoingDecoration,
+	PendingMesh,
+	DoingMesh,
 	Done,
 	DoingDelete,
 }
@@ -59,6 +60,8 @@ ChunkComponent :: struct {
 
 	is_empty:        bool,
 	is_all_solid:    bool,
+
+	mu: sync.Mutex,
 }
 
 LightComponent :: struct {

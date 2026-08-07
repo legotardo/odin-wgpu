@@ -3,6 +3,7 @@ package game
 import "core:fmt"
 import "core:math"
 import "core:math/linalg"
+import "core:sync"
 import "core:thread"
 import "../constants"
 import "../ecs"
@@ -54,8 +55,10 @@ system_chunk_spawner :: proc(state: ^GameState) {
 			if c.state == .DoingTerrain || c.state == .DoingMesh || c.state == .DoingDecoration do continue
 			c.state = .DoingDelete
 
+			sync.mutex_lock(&c.mu)
 			if raw_data(c.palette) != nil do delete(c.palette)
 			if raw_data(c.packed_blocks) != nil do delete(c.packed_blocks)
+			sync.mutex_unlock(&c.mu)
 
 			bx := i32(math.round(t.position.x / constants.BLOCK_SIZE))
 			by := i32(math.round(t.position.y / constants.BLOCK_SIZE))
@@ -66,6 +69,7 @@ system_chunk_spawner :: proc(state: ^GameState) {
 		}
 	}
 
+	sync.mutex_lock(&state.world.chunk_map_mu)
 	if state.world.chunk_map == nil {
 		state.world.chunk_map = make(map[[3]i32]int, 2048)
 	} else {
@@ -83,6 +87,7 @@ system_chunk_spawner :: proc(state: ^GameState) {
 			state.world.chunk_map[coord] = i
 		}
 	}
+	sync.mutex_unlock(&state.world.chunk_map_mu)
 
 	chunks_created_this_frame := 0
 	max_chunks_per_frame := 4

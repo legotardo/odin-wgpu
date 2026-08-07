@@ -1,5 +1,6 @@
 package game
 
+import "core:sync"
 import "core:slice"
 import "core:math"
 import "../constants"
@@ -12,6 +13,8 @@ CHUNK_LOD_8_DIST :: 1024 * 1024
 
 @(private)
 chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
+	sync.mutex_lock(&chunk.mu)
+	defer sync.mutex_unlock(&chunk.mu)
 	if chunk.state == .DoingDelete do return .Air
 
 	if x < 0 ||
@@ -42,6 +45,8 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.B
 
 @(private)
 chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Block) {
+	sync.mutex_lock(&chunk.mu)
+	defer sync.mutex_unlock(&chunk.mu)
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -51,28 +56,14 @@ chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Blo
 		return
 	}
 
-	palette_idx := -1
-	// Find the block in palette
-	for p, i in chunk.palette {
-		if p == block {
-			palette_idx = i
-			break
-		}
-	}
+	// Locked by mutex
+	palette_idx := chunk_get_or_add_palette_idx_unlocked(chunk, block)
 
-	// If block is not found, append it to the palette
-	if palette_idx == -1 {
-		append(&chunk.palette, block)
-		palette_idx = len(chunk.palette) - 1
-
-		chunk_repack(chunk)
-	}
-
-	chunk_set_block_fast(chunk, x, y, z, palette_idx)
+	chunk_set_block_fast_unlocked(chunk, x, y, z, palette_idx)
 }
 
 @(private = "file")
-chunk_repack :: proc(chunk: ^ecs.ChunkComponent) {
+chunk_repack_unlocked :: proc(chunk: ^ecs.ChunkComponent) {
 	new_bits := get_required_bits(len(chunk.palette))
 
 	if new_bits == chunk.bits_per_block do return
@@ -159,10 +150,16 @@ world_get_block_at :: proc(world: ^ecs.World, world_pos: [3]i32) -> ecs.Block {
 
 @(private)
 world_get_chunk_at :: proc(world: ^ecs.World, chunk_coord: [3]i32) -> int {
+	sync.mutex_lock(&world.chunk_map_mu)
+	defer sync.mutex_unlock(&world.chunk_map_mu)
+	return world_get_chunk_at_unlocked(world, chunk_coord)
+}
+
+@(private = "file")
+world_get_chunk_at_unlocked :: proc(world: ^ecs.World, chunk_coord: [3]i32) -> int {
 	if idx, ok := world.chunk_map[chunk_coord]; ok {
 		return idx
 	}
-	
 	return -1
 }
 
@@ -202,20 +199,21 @@ world_stamp_prefab :: proc(
 	chunk_local_position: [3]i32,
 	prefab: ^VoxelPrefab,
 ) -> i32 {
+	sync.mutex_lock(&chunk.mu)
+	defer sync.mutex_unlock(&chunk.mu)
 	blocks_stamped: i32 = 0
 
 	offset_x := -i32(prefab.width / 2)
 	// offset_y := -i32(prefab.height / 2)
 	offset_z := -i32(prefab.depth / 2)
 
-	b_idx := chunk_get_or_add_palette_idx(chunk, .Blue)
-	// chunk_set_block_fast(chunk, chunk_local_position[0] + 0, chunk_local_position[1] + 0, chunk_local_position[2] + 0, b_idx)
-	chunk_set_block_fast(chunk, 0, chunk_local_position[1], 0, b_idx)
+	b_idx := chunk_get_or_add_palette_idx_unlocked(chunk, .Blue)
+	chunk_set_block_fast_unlocked(chunk, 0, chunk_local_position[1], 0, b_idx)
+
 	target_chunk_idx := world_get_chunk_at(world, {chunk_global_pos[0] - 1, chunk_global_pos[1], chunk_global_pos[2]})
 	if target_chunk_idx != -1 {
-		target_chunk := &world.chunks[target_chunk_idx]
-		b_idx = chunk_get_or_add_palette_idx(target_chunk, .Red)
-		chunk_set_block_fast(chunk, constants.CHUNK_SIZE -1, chunk_local_position[1], 0, b_idx)
+		b_idx = chunk_get_or_add_palette_idx_unlocked(chunk, .Red)
+		chunk_set_block_fast_unlocked(chunk, constants.CHUNK_SIZE - 1, chunk_local_position[1], 0, b_idx)
 	}
 	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
 	blocks_stamped += 1
@@ -287,18 +285,25 @@ game_change_render_distance :: proc(state: ^GameState, render_distance: i32) {
 
 @(private)
 chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
+	sync.mutex_lock(&chunk.mu)
+	defer sync.mutex_unlock(&chunk.mu)
+	return chunk_get_or_add_palette_idx_unlocked(chunk, block)
+}
+
+@(private="file")
+chunk_get_or_add_palette_idx_unlocked :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
 	for p, i in chunk.palette {
 		if p == block do return i
 	}
 	
 	append(&chunk.palette, block)
-	chunk_repack(chunk)
+	chunk_repack_unlocked(chunk)
 	
 	return len(chunk.palette) - 1
 }
 
-@(private)
-chunk_set_block_fast :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_idx: int) {
+@(private="file")
+chunk_set_block_fast_unlocked :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, palette_idx: int) {
 	if chunk.bits_per_block > 0 {
 		idx := world_get_chunk_index(x, y, z)
 		blocks_per_u64 := 64 / i32(chunk.bits_per_block)

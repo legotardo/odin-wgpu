@@ -1,5 +1,7 @@
 package ecs
 
+import "core:sync"
+
 MAX_ENTITIES :: 100000
 
 ComponentType :: enum {
@@ -32,6 +34,7 @@ World :: struct {
 	cameras:            [1]CameraComponent,
 
 	chunk_map: map[[3]i32]int,
+	chunk_map_mu: sync.Mutex,
 	chunk_spawn_offset: [dynamic]ChunkOffset,
 
 	render_distance: i32,

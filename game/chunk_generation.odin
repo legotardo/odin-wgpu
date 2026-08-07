@@ -2,6 +2,7 @@ package game
 
 import "core:math"
 import "core:math/linalg"
+import "core:sync"
 import "core:thread"
 import "../constants"
 import "../ecs"
@@ -19,9 +20,11 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 
 	chunk := &data.world.chunks[entity_index]
 
+	sync.mutex_lock(&chunk.mu)
 	if len(chunk.palette) == 0 {
 		append(&chunk.palette, ecs.Block.Air)
 	}
+	sync.mutex_unlock(&chunk.mu)
 
 	seed: i32 = 12345
 
@@ -81,11 +84,13 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 	}
 
 	max_blocks := chunk_size * chunk_size * chunk_size
+	sync.mutex_lock(&chunk.mu)
 	if blocks_placed == 0 {
 		chunk.is_empty = true
 	} else if blocks_placed == max_blocks {
 		chunk.is_all_solid = true
 	}
+	sync.mutex_unlock(&chunk.mu)
 }
 
 chunk_generate_decoration :: proc(t: thread.Task) {
