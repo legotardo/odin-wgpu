@@ -7,9 +7,9 @@ import "../constants"
 import "../ecs"
 import "../renderer"
 
-CHUNK_LOD_2_DIST :: 64 * 64
-CHUNK_LOD_4_DIST :: 128 * 128
-CHUNK_LOD_8_DIST :: 256 * 256
+CHUNK_LOD_2_DIST :: 256 * 256
+CHUNK_LOD_4_DIST :: 512 * 512
+CHUNK_LOD_8_DIST :: 1024 * 1024
 
 @(private)
 chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
@@ -143,36 +143,30 @@ world_get_chunk_block :: proc(world: ^ecs.World, chunk_idx: u32, x, y, z: i32, n
 }
 
 @(private)
-world_get_block_at :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.Block {
-	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+world_get_relative_block_at :: proc(world: ^ecs.World, world_pos: linalg.Vector3f32) -> ecs.Block {
+	bs := constants.BLOCK_SIZE
 
-	chunk_x := math.floor(world_pos.x / chunk_size_world) * chunk_size_world
-	chunk_y := math.floor(world_pos.y / chunk_size_world) * chunk_size_world
-	chunk_z := math.floor(world_pos.z / chunk_size_world) * chunk_size_world
+	block_x := i32(math.floor(world_pos.x / bs))
+	block_y := i32(math.floor(world_pos.y / bs))
+	block_z := i32(math.floor(world_pos.z / bs))
 
-	chunk_pos := linalg.Vector3f32{chunk_x, chunk_y, chunk_z}
+	cx := i32(math.floor(f32(block_x) / f32(constants.CHUNK_SIZE)))
+	cy := i32(math.floor(f32(block_y) / f32(constants.CHUNK_SIZE)))
+	cz := i32(math.floor(f32(block_z) / f32(constants.CHUNK_SIZE)))
 
-	chunk_idx := world_get_chunk_at(world, chunk_pos)
+	chunk_idx := world_get_chunk_at(world, {cx, cy, cz})
 	if chunk_idx == -1 do return .Air
 
-	local_x := i32(math.floor((world_pos.x - chunk_x) / constants.BLOCK_SIZE))
-	local_y := i32(math.floor((world_pos.y - chunk_y) / constants.BLOCK_SIZE))
-	local_z := i32(math.floor((world_pos.z - chunk_z) / constants.BLOCK_SIZE))
+	local_x := block_x - (cx * constants.CHUNK_SIZE)
+	local_y := block_y - (cy * constants.CHUNK_SIZE)
+	local_z := block_z - (cz * constants.CHUNK_SIZE)
 
 	return chunk_get_block_local(&world.chunks[chunk_idx], local_x, local_y, local_z)
 }
 
 @(private)
-world_get_chunk_at :: proc(world: ^ecs.World, pos: linalg.Vector3f32) -> int {
-	chunk_size_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-	
-	coord := [3]i32{
-		i32(math.round(pos.x / chunk_size_world)),
-		i32(math.round(pos.y / chunk_size_world)),
-		i32(math.round(pos.z / chunk_size_world)),
-	}
-
-	if idx, ok := world.chunk_map[coord]; ok {
+world_get_chunk_at :: proc(world: ^ecs.World, chunk_coord: [3]i32) -> int {
+	if idx, ok := world.chunk_map[chunk_coord]; ok {
 		return idx
 	}
 	
@@ -202,7 +196,7 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 					f32(z) * constants.BLOCK_SIZE,
 				}
 
-				block := world_get_block_at(world, world_pos)
+				block := world_get_relative_block_at(world, world_pos)
 				if block != .Air {
 					return true
 				}
@@ -217,7 +211,7 @@ world_check_collision :: proc(world: ^ecs.World, aabb: AABB) -> bool {
 world_stamp_prefab :: proc(
 	world: ^ecs.World,
 	chunk: ^ecs.ChunkComponent,
-	chunk_global_pos: linalg.Vector3f32,
+	chunk_global_pos: [3]i32,
 	chunk_local_position: [3]i32,
 	prefab: ^VoxelPrefab,
 ) -> i32 {
@@ -271,7 +265,7 @@ world_build_spawn_offsets :: proc(world: ^ecs.World) {
 	for y := -expanded_render; y <= expanded_render; y += 1 {
 		for z := -expanded_render; z <= expanded_render; z += 1 {
 			for x := -expanded_render; x <= expanded_render; x += 1 {
-				d := f32(x*x + y*y + z*z)
+				d := x*x + y*y + z*z
 				append(&offsets, ecs.ChunkOffset{x, y, z, d})
 			}
 		}
