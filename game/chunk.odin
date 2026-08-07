@@ -230,11 +230,6 @@ system_chunk_generate :: proc(state: ^GameState) {
 		}
 
 		if chunk.state == .PendingMesh {
-			if chunk.is_empty {
-				chunk.state = .Done
-				continue
-			}
-
 			n0_idx := world_get_chunk_at(state.world, {cx - 1, cy, cz})
 			n1_idx := world_get_chunk_at(state.world, {cx + 1, cy, cz})
 			n2_idx := world_get_chunk_at(state.world, {cx, cy - 1, cz})
@@ -249,16 +244,24 @@ system_chunk_generate :: proc(state: ^GameState) {
 			n4 := n4_idx >= 0 ? &state.world.chunks[n4_idx] : nil
 			n5 := n5_idx >= 0 ? &state.world.chunks[n5_idx] : nil
 
-			if n0 == nil || n0.state <= .DoingMissingBlocks do continue
-			if n1 == nil || n1.state <= .DoingMissingBlocks do continue
-			if n2 == nil || n2.state <= .DoingMissingBlocks do continue
-			if n3 == nil || n3.state <= .DoingMissingBlocks do continue
-			if n4 == nil || n4.state <= .DoingMissingBlocks do continue
-			if n5 == nil || n5.state <= .DoingMissingBlocks do continue
+			if n0 != nil && n0.state <= .DoingMissingBlocks do continue
+			if n1 != nil && n1.state <= .DoingMissingBlocks do continue
+			if n2 != nil && n2.state <= .DoingMissingBlocks do continue
+			if n3 != nil && n3.state <= .DoingMissingBlocks do continue
+			if n4 != nil && n4.state <= .DoingMissingBlocks do continue
+			if n5 != nil && n5.state <= .DoingMissingBlocks do continue
+
+			apply_missing_blocks(state.world, chunk, ecs.ChunkPos{cx, cy, cz})
+
+			if chunk.is_empty {
+				chunk.state = .Done
+				continue
+			}
 
 			// All solid, we dont need to fill this guy
 			if chunk.is_all_solid {
-				if n0.is_all_solid && n1.is_all_solid && n2.is_all_solid &&
+				if n0 != nil && n1 != nil && n2 != nil && n3 != nil && n4 != nil && n5 != nil &&
+				   n0.is_all_solid && n1.is_all_solid && n2.is_all_solid &&
 				   n3.is_all_solid && n4.is_all_solid && n5.is_all_solid {
 					chunk.state = .Done
 					continue

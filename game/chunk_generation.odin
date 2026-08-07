@@ -163,6 +163,29 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	}
 }
 
+@(private)
+apply_missing_blocks :: proc(world: ^ecs.World, chunk: ^ecs.ChunkComponent, key: ecs.ChunkPos) -> int {
+	blocks_placed := 0
+
+	sync.mutex_lock(&world.chunk_missing_blocks_mu)
+	if list, ok := &world.chunk_missing_blocks[key]; ok {
+		for missing_block in list {
+			target_palette_idx := chunk_get_or_add_palette_idx(chunk, missing_block.block)
+			chunk_set_block_fast(chunk, missing_block.x, missing_block.y, missing_block.z, target_palette_idx)
+			blocks_placed += 1
+		}
+		delete(list^)
+		delete_key(&world.chunk_missing_blocks, key)
+	}
+	sync.mutex_unlock(&world.chunk_missing_blocks_mu)
+
+	if blocks_placed > 0 {
+		chunk.is_empty = false
+	}
+
+	return blocks_placed
+}
+
 chunk_generate_missing_blocks :: proc(t: thread.Task) {
 	free_all(context.temp_allocator)
 
@@ -171,25 +194,5 @@ chunk_generate_missing_blocks :: proc(t: thread.Task) {
 
 	chunk := &data.world.chunks[entity_index]
 
-	sync.mutex_lock(&data.world.chunk_missing_blocks_mu)
-	key := data.chunk_pos
-	blocks_placed := 0
-	if list, ok := &data.world.chunk_missing_blocks[key]; ok {
-		for missing_block in list {
-			target_palette_idx := chunk_get_or_add_palette_idx(chunk, missing_block.block)
-			chunk_set_block_fast(chunk, missing_block.x, missing_block.y, missing_block.z, target_palette_idx)
-			blocks_placed += 1
-		}
-		delete(list^)
-		delete_key(&data.world.chunk_missing_blocks, key)
-	}
-	sync.mutex_unlock(&data.world.chunk_missing_blocks_mu)
-
-	if blocks_placed > 0 {
-		chunk.is_empty = false
-
-		if chunk.state == .Done {
-			chunk.state = .PendingMesh
-		}
-	}
+	apply_missing_blocks(data.world, chunk, data.chunk_pos)
 }
