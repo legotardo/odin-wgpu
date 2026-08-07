@@ -9,9 +9,17 @@ import "../constants"
 game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 	items := make([dynamic]renderer.RenderItem)
 	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
+	chunk_mask := ecs.ComponentMask{.ChunkComponent}
 
 	cam_matrix := game_get_camera_matrix(state)
 	frustum := frustum_extract(cam_matrix)
+
+	chunk_aabb := AABB{
+		min = {0, 0, 0},
+		max = {f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE}
+	}
+
+	chunk_material := assets_get_material(&state.assets, MaterialHandle("chunk"))
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & required_mask) != required_mask do continue
@@ -19,28 +27,26 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 		t := state.world.transforms[i]
 		r := state.world.renders[i]
 
-		is_chunk := (state.world.masks[i] & ecs.ComponentMask{.ChunkComponent}) == ecs.ComponentMask{.ChunkComponent}
+		is_chunk := (state.world.masks[i] & chunk_mask) == chunk_mask
 
-		local_aabb: AABB
+		world_aabb: AABB
+		m: linalg.Matrix4f32
 		if is_chunk {
-			local_aabb = AABB{
-				min = {0, 0, 0},
-				max = {f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE, f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE}
-			}
+			world_aabb = AABB{min = chunk_aabb.min + t.position, max = chunk_aabb.max + t.position}
+			m = linalg.matrix4_translate_f32(t.position)
 		} else {
-			local_aabb = AABB{
-				min = {-1, -1, -1},
-				max = {1, 1, 1}
-			}
+			m = transform_matrix(t)
+			world_aabb = aabb_transform(AABB{min = {-1, -1, -1}, max = {1, 1, 1}}, m)
 		}
-
-		m := transform_matrix(t)
-		world_aabb := aabb_transform(local_aabb, m)
 
 		if !aabb_in_frustum(world_aabb, frustum) do continue
 
 		mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
-		mat_ptr := assets_get_material(&state.assets, MaterialHandle(r.material))
+
+		mat_ptr := chunk_material
+		if !is_chunk {
+			mat_ptr = assets_get_material(&state.assets, MaterialHandle(r.material))
+		}
 
 		if mesh_ptr == nil || mat_ptr == nil do continue
 
