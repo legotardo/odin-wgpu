@@ -279,16 +279,18 @@ renderer_create_lighting_bind_group :: proc(
 	gbuffer: ^GBuffer,
 	depth_texture_view: wgpu.TextureView,
 	camera_buffer: wgpu.Buffer,
+	render_config_buffer: wgpu.Buffer,
 ) -> (wgpu.BindGroup, wgpu.BindGroupLayout) {
-	entries := [5]wgpu.BindGroupEntry{
+	entries := [6]wgpu.BindGroupEntry{
 		{ binding = 0, textureView = gbuffer.albedo_view },
 		{ binding = 1, textureView = gbuffer.normal_view },
 		{ binding = 2, textureView = depth_texture_view },
 		{ binding = 3, sampler = gbuffer.sampler },
 		{ binding = 4, buffer = camera_buffer, offset = 0, size = size_of(CameraUniform) },
+		{ binding = 5, buffer = render_config_buffer, offset = 0, size = size_of(RenderConfigUniform) },
 	}
 
-	layout_entries := [5]wgpu.BindGroupLayoutEntry {
+	layout_entries := [6]wgpu.BindGroupLayoutEntry {
 		{
 			binding = 0,
 			visibility = {.Fragment},
@@ -330,6 +332,11 @@ renderer_create_lighting_bind_group :: proc(
 				type = .Uniform,
 				minBindingSize = size_of(CameraUniform)
 			},
+		},
+		{
+			binding = 5,
+			visibility = {.Fragment},
+			buffer = { type = .Uniform, minBindingSize = size_of(RenderConfigUniform) },
 		},
 	}
 
@@ -373,36 +380,6 @@ renderer_create_lighting_pipeline :: proc(
 		},
 	)
 
-	layouts := [3]wgpu.VertexBufferLayout{
-		{
-			stepMode = .Vertex,
-			arrayStride = 8,
-			attributeCount = 1,
-			attributes = &wgpu.VertexAttribute{
-				format = .Float32x2,
-				shaderLocation = 0,
-			},
-		},
-		{
-			stepMode = .Vertex,
-			arrayStride = 8,
-			attributeCount = 1,
-			attributes = &wgpu.VertexAttribute{
-				format = .Float32x2,
-				shaderLocation = 1,
-			},
-		},
-		{
-			stepMode = .Vertex,
-			arrayStride = 4,
-			attributeCount = 1,
-			attributes = &wgpu.VertexAttribute{
-				format = .Uint32,
-				shaderLocation = 2,
-			},
-		}
-	}
-
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		device,
 		&{
@@ -411,6 +388,8 @@ renderer_create_lighting_pipeline :: proc(
 			vertex = {
 				module = shader_module,
 				entryPoint = "vs_main",
+				bufferCount = 0,
+				buffers = nil,
 			},
 			fragment = &{
 				module = shader_module,

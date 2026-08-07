@@ -78,7 +78,7 @@ renderer_init :: proc(
 
 	gbuffer := renderer_create_gbuffer(device, s_config)
 	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
-	lighting_bind_group, lighting_layout_group := renderer_create_lighting_bind_group(device, &gbuffer, depth_texture_view, camera_buffer)
+	lighting_bind_group, lighting_layout_group := renderer_create_lighting_bind_group(device, &gbuffer, depth_texture_view, camera_buffer, render_config_buffer)
 	lighting_pipeline, lighting_pipeline_layout := renderer_create_lighting_pipeline(device, &lighting_layout_group, s_config)
 
 	microui_atlas_texture_view, microui_atlas_texture, microui_sampler := microui_create_atlas_texture_view(device)
@@ -293,7 +293,7 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 	r.depth_texture_view = renderer_create_depth_texture_view(r.device, s_config)
 	r.gbuffer = renderer_create_gbuffer(r.device, s_config)
 
-	r.lighting_bind_group, _ = renderer_create_lighting_bind_group(r.device, &r.gbuffer, r.depth_texture_view, r.camera_buffer)
+	r.lighting_bind_group, _ = renderer_create_lighting_bind_group(r.device, &r.gbuffer, r.depth_texture_view, r.camera_buffer, r.render_config_buffer)
 
 	microui_update_constant(r.queue, r.microui_constant_buffer, r.window)
 }

@@ -5,6 +5,11 @@ struct CameraUniform {
     _pad: f32,
 }
 
+struct RenderConfig {
+    render_distance: i32,
+    block_size: f32,
+}
+
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
@@ -29,6 +34,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 @group(0) @binding(2) var g_depth: texture_depth_2d;
 @group(0) @binding(3) var g_sampler: sampler;
 @group(0) @binding(4) var<uniform> camera: CameraUniform;
+@group(0) @binding(5) var<uniform> render_config: RenderConfig;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -49,8 +55,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_position = world_unprojected.xyz / world_unprojected.w;
     
     let dist = length(camera.position - world_position);
-    let fog_start = 120.0;
-    let fog_end = 140.0;
+    let fog_start = f32(render_config.render_distance * 9);
+    let fog_end = fog_start + 10.0;
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
     let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 
