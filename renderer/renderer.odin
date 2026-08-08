@@ -157,8 +157,8 @@ renderer_init :: proc(
 	r.h_shadow_texture = create_texture(&r.renderer_manager, &{
 		label = "shadow map texture",
 		size = {
-			width = 4096,
-			height = 4096,
+			width = 8192,
+			height = 8192,
 			depthOrArrayLayers = 1,
 		},
 		mipLevelCount = 1,
@@ -175,9 +175,10 @@ renderer_init :: proc(
 		addressModeU = .ClampToEdge,
 		addressModeV = .ClampToEdge,
 		addressModeW = .ClampToEdge,
-		magFilter = .Nearest,
-		minFilter = .Nearest,
+		magFilter = .Linear,
+		minFilter = .Linear,
 		mipmapFilter = .Nearest,
+		compare = .Less,
 		maxAnisotropy = 1,
 	})
 
@@ -301,7 +302,7 @@ renderer_init :: proc(
 		{
 			binding = 8,
 			visibility = {.Fragment},
-			sampler = { type = .NonFiltering },
+			sampler = { type = .Comparison },
 		},
 	})
 

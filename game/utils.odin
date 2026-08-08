@@ -107,8 +107,8 @@ game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector3f32) -> renderer.SunUniform {
 	norm_dir := linalg.vector_normalize(sun_dir)
 	
-	ortho_size: f32 = 120.0
-	resolution: f32 = 4096.0
+	ortho_size: f32 = 100.0
+	resolution: f32 = 8192.0
 	texel_size := (ortho_size * 2.0) / resolution
 
 	forward := norm_dir
@@ -131,8 +131,31 @@ game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector
 	
 	view_matrix := linalg.matrix4_look_at_f32(sun_pos, snapped_target, {0.0, 1.0, 0.0})
 
-	near: f32 = 0.1
-	far: f32 = 1000.0
+	world_height: f32 = 80.0
+	vertical := linalg.Vector3f32{0.0, world_height, 0.0}
+
+	near_z: f32 = math.F32_MAX
+	far_z: f32 = math.F32_MIN
+
+	corners := [8]linalg.Vector3f32{
+		right * ortho_size + up * ortho_size + vertical,
+		right * ortho_size + up * ortho_size - vertical,
+		right * ortho_size - up * ortho_size + vertical,
+		right * ortho_size - up * ortho_size - vertical,
+		-right * ortho_size + up * ortho_size + vertical,
+		-right * ortho_size + up * ortho_size - vertical,
+		-right * ortho_size - up * ortho_size + vertical,
+		-right * ortho_size - up * ortho_size - vertical,
+	}
+
+	for corner in corners {
+		z := linalg.vector_dot(snapped_target + corner - sun_pos, forward)
+		near_z = math.min(near_z, z)
+		far_z = math.max(far_z, z)
+	}
+
+	near: f32 = math.max(near_z, 1.0)
+	far: f32 = math.max(far_z, near + 100.0)
 
 	proj_matrix := linalg.MATRIX4F32_IDENTITY
 	proj_matrix[0, 0] = 1.0 / ortho_size
