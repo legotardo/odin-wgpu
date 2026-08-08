@@ -5,6 +5,11 @@ struct CameraUniform {
     _pad: f32,
 }
 
+struct SunUniform {
+    view_proj: mat4x4<f32>,
+    direction: vec4<f32>,
+}
+
 struct RenderConfig {
     render_distance: i32,
     block_size: f32,
@@ -35,6 +40,9 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 @group(0) @binding(3) var g_sampler: sampler;
 @group(0) @binding(4) var<uniform> camera: CameraUniform;
 @group(0) @binding(5) var<uniform> render_config: RenderConfig;
+@group(0) @binding(6) var<uniform> sun: SunUniform;
+@group(0) @binding(7) var shadow_map: texture_depth_2d;
+@group(0) @binding(8) var shadow_sampler: sampler_comparison;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
@@ -51,8 +59,28 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let ndc_pos = vec4<f32>(ndc_x, ndc_y, depth, 1.0);
 
     let world_unprojected = camera.view_proj_inv * ndc_pos;
-
     let world_position = world_unprojected.xyz / world_unprojected.w;
+
+    let sun_pos = sun.view_proj * vec4<f32>(world_position, 1.0);
+    let sun_ndc = sun_pos.xyz / sun_pos.w;
+
+    let shadow_uv = vec2<f32>(
+        sun_ndc.x * 0.5 + 0.5,
+        sun_ndc.y * -0.5 + 0.5,
+    );
+
+    var shadow_factor = 1.0;
+    if (shadow_uv.x >= 0.0 && shadow_uv.x <= 1.0 &&
+        shadow_uv.y >= 0.0 && shadow_uv.y <= 1.0 &&
+        sun_ndc.z >= 0.0 && sun_ndc.z <= 1.0) {
+        
+        let bias = 0.0005;
+        shadow_factor = textureSampleCompare(shadow_map, shadow_sampler, shadow_uv, sun_ndc.z - bias);
+    }
+
+    let ambient_light = 0.4;
+    let light_intensity = mix(ambient_light, 1.0, shadow_factor);
+    let lit_albedo = albedo * light_intensity;
     
     let dist = length(camera.position - world_position);
     let fog_start = f32(render_config.render_distance * 9);
@@ -60,7 +88,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
     let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 
-    let final_color = mix(fog_color, albedo, fog_factor);
+    let final_color = mix(fog_color, lit_albedo, fog_factor);
 
     return vec4<f32>(final_color, 1.0);
 }

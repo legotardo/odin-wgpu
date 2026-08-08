@@ -103,6 +103,28 @@ game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 	}
 }
 
+game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector3f32) -> renderer.SunUniform {
+	norm_dir := linalg.vector_normalize(sun_dir)
+	sun_pos := player_pos - (norm_dir * 500.0)
+
+	view_matrix := linalg.matrix4_look_at_f32(sun_pos, player_pos, { 0, 1, 0 })
+
+	ortho_size: f32 = 120.0
+	n: f32 = 0.1
+	f: f32 = 1000.0
+
+	proj_matrix := linalg.MATRIX4F32_IDENTITY
+	proj_matrix[0, 0] = 1.0 / ortho_size
+	proj_matrix[1, 1] = 1.0 / ortho_size
+	proj_matrix[2, 2] = 1.0 / (n - f)
+	proj_matrix[2, 3] = n / (n - f)
+
+	return {
+		view_proj = proj_matrix * view_matrix,
+		direction = {norm_dir.x, norm_dir.y, norm_dir.z, 0},
+	}
+}
+
 transform_matrix :: proc(t: ecs.TransformComponent) -> matrix[4, 4]f32 {
 	model := linalg.matrix4_from_trs_f32(t.position, t.rotation, t.scale)
 

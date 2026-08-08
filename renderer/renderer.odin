@@ -15,10 +15,12 @@ Renderer :: struct {
 	global_bind_group:   wgpu.BindGroup,
 	microui_bind_group:   wgpu.BindGroup,
 	lighting_bind_group:     wgpu.BindGroup,
+	sun_bind_group:     wgpu.BindGroup,
 
 	global_layout_group: wgpu.BindGroupLayout,
 	microui_layout_group: wgpu.BindGroupLayout,
 	lighting_layout_group:   wgpu.BindGroupLayout,
+	sun_layout_group:   wgpu.BindGroupLayout,
 
 	palette_buffer: wgpu.Buffer,
 	camera_buffer:  wgpu.Buffer,
@@ -43,6 +45,14 @@ Renderer :: struct {
 
 	lighting_pipeline:       wgpu.RenderPipeline,
 	lighting_pipeline_layout: wgpu.PipelineLayout,
+
+	shadow_pipeline:       wgpu.RenderPipeline,
+	shadow_pipeline_layout: wgpu.PipelineLayout,
+
+	shadow_texture:      wgpu.Texture,
+	shadow_texture_view: wgpu.TextureView,
+	shadow_sampler:      wgpu.Sampler,
+	sun_buffer:          wgpu.Buffer,
 
 	microui_ctx: ^mu.Context,
 
@@ -78,10 +88,12 @@ renderer_init :: proc(
 
 	gbuffer := renderer_create_gbuffer(device, s_config)
 	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
-	lighting_bind_group, lighting_layout_group := renderer_create_lighting_bind_group(device, &gbuffer, depth_texture_view, camera_buffer, render_config_buffer)
-	lighting_pipeline, lighting_pipeline_layout := renderer_create_lighting_pipeline(device, &lighting_layout_group, s_config)
 
 	microui_atlas_texture_view, microui_atlas_texture, microui_sampler := microui_create_atlas_texture_view(device)
+
+	shadow_texture, shadow_texture_view, shadow_sampler := renderer_create_shadow_map(device)
+	sun_buffer := renderer_create_sun_buffer(device)
+	sun_bind_group, sun_layout_group := renderer_create_sun_bind_group(device, sun_buffer)
 
 	global_bind_group, global_layout_group := renderer_create_global_bind_group(
 		device,
@@ -91,6 +103,16 @@ renderer_init :: proc(
 		instance_buffer,
 		render_config_buffer,
 	)
+	lighting_bind_group, lighting_layout_group := renderer_create_lighting_bind_group(
+		device,
+		&gbuffer,
+		depth_texture_view,
+		camera_buffer, 
+		render_config_buffer,
+		sun_buffer,
+		shadow_texture_view,
+		shadow_sampler,
+	)
 	microui_bind_group, microui_layout_group := microui_create_bind_group(
 		device,
 		microui_sampler,
@@ -99,6 +121,12 @@ renderer_init :: proc(
 	)
 
 	microui_pipeline, microui_pipeline_layout := microui_create_pipeline(device, &microui_layout_group)
+	shadow_pipeline, shadow_pipeline_layout := renderer_create_shadow_pipeline(
+		device,
+		global_layout_group,
+		sun_layout_group
+	)
+	lighting_pipeline, lighting_pipeline_layout := renderer_create_lighting_pipeline(device, &lighting_layout_group, s_config)
 
 	microui_update_atlas_texture(queue, microui_atlas_texture)
 	microui_update_constant(queue, microui_constant_buffer, window)
@@ -136,14 +164,83 @@ renderer_init :: proc(
 		lighting_layout_group = lighting_layout_group,
 		lighting_pipeline = lighting_pipeline,
 		lighting_pipeline_layout = lighting_pipeline_layout,
+
+		shadow_sampler = shadow_sampler,
+		shadow_texture = shadow_texture,
+		shadow_texture_view = shadow_texture_view,
+		sun_buffer = sun_buffer,
+		sun_bind_group = sun_bind_group,
+		sun_layout_group = sun_layout_group,
+		shadow_pipeline = shadow_pipeline,
+		shadow_pipeline_layout = shadow_pipeline_layout,
 	}
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
 	defer delete(items)
 
+	need_instancing := false
+	for item in items {
+		if item.should_use_instance {
+			need_instancing = true
+			break
+		}
+	}
+	if need_instancing {
+		transforms := renderer_get_instancing_items(items)
+		renderer_update_instance_buffer(r, transforms)
+		delete(transforms)
+	}
+
 	encoder := wgpu.DeviceCreateCommandEncoder(r.device, nil)
 	defer wgpu.CommandEncoderRelease(encoder)
+
+	shadow_pass := wgpu.CommandEncoderBeginRenderPass(
+		encoder,
+		&{
+			label = "shadow render pass",
+			colorAttachmentCount = 0,
+			depthStencilAttachment = &{
+				view = r.shadow_texture_view,
+				depthLoadOp = .Clear,
+				depthStoreOp = .Store,
+				depthClearValue = 1.0,
+				depthReadOnly = false,
+			}
+		},
+	)
+
+	wgpu.RenderPassEncoderSetPipeline(shadow_pass, r.shadow_pipeline)
+	wgpu.RenderPassEncoderSetBindGroup(shadow_pass, 0, r.global_bind_group)
+	wgpu.RenderPassEncoderSetBindGroup(shadow_pass, 1, r.sun_bind_group)
+
+	for item, i in items {
+		wgpu.RenderPassEncoderSetVertexBuffer(
+			shadow_pass,
+			0,
+			item.mesh.vertex_buffer,
+			0,
+			u64(size_of(Vertex) * item.mesh.vertex_count),
+		)
+		wgpu.RenderPassEncoderSetIndexBuffer(
+			shadow_pass,
+			item.mesh.index_buffer,
+			.Uint16,
+			0,
+			u64(size_of(u16) * item.mesh.index_count),
+		)
+		wgpu.RenderPassEncoderDrawIndexed(
+			shadow_pass,
+			indexCount = item.mesh.index_count,
+			instanceCount = 1,
+			firstIndex = 0,
+			baseVertex = 0,
+			firstInstance = u32(i),
+		)
+	}
+
+	wgpu.RenderPassEncoderEnd(shadow_pass)
+	wgpu.RenderPassEncoderRelease(shadow_pass)
 
 	attachments := [2]wgpu.RenderPassColorAttachment{
 		{ 
@@ -217,18 +314,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 
 @(private="file")
 renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items: []RenderItem) {
-	need_instancing := false
-	for item in items {
-		if item.should_use_instance {
-			need_instancing = true
-			break
-		}
-	}
-	if need_instancing {
-		transforms := renderer_get_instancing_items(items)
-		renderer_update_instance_buffer(r, transforms)
-		delete(transforms)
-	}
+
 
 	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.global_bind_group)
 
@@ -293,7 +379,16 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 	r.depth_texture_view = renderer_create_depth_texture_view(r.device, s_config)
 	r.gbuffer = renderer_create_gbuffer(r.device, s_config)
 
-	r.lighting_bind_group, _ = renderer_create_lighting_bind_group(r.device, &r.gbuffer, r.depth_texture_view, r.camera_buffer, r.render_config_buffer)
+	r.lighting_bind_group, _ = renderer_create_lighting_bind_group(
+		r.device,
+		&r.gbuffer,
+		r.depth_texture_view,
+		r.camera_buffer,
+		r.render_config_buffer,
+		r.sun_buffer,
+		r.shadow_texture_view,
+		r.shadow_sampler,
+	)
 
 	microui_update_constant(r.queue, r.microui_constant_buffer, r.window)
 }
@@ -309,18 +404,23 @@ renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.BufferRelease(r.microui_color_buffer)
 	wgpu.BufferRelease(r.microui_index_buffer)
 	wgpu.BufferRelease(r.render_config_buffer)
+	wgpu.BufferRelease(r.sun_buffer)
 
 	wgpu.TextureViewRelease(r.depth_texture_view)
 	wgpu.TextureViewRelease(r.microui_atlas_texture_view)
+	wgpu.TextureViewRelease(r.shadow_texture_view)
 
 	wgpu.BindGroupRelease(r.global_bind_group)
 	wgpu.BindGroupRelease(r.microui_bind_group)
 	wgpu.BindGroupRelease(r.lighting_bind_group)
+	wgpu.BindGroupRelease(r.sun_bind_group)
 	wgpu.BindGroupLayoutRelease(r.global_layout_group)
 	wgpu.BindGroupLayoutRelease(r.microui_layout_group)
 	wgpu.BindGroupLayoutRelease(r.lighting_layout_group)
+	wgpu.BindGroupLayoutRelease(r.sun_layout_group)
 
 	wgpu.SamplerRelease(r.microui_sampler)
+	wgpu.SamplerRelease(r.shadow_sampler)
 
 	renderer_destroy_gbuffer(&r.gbuffer)
 
@@ -330,7 +430,11 @@ renderer_destroy :: proc(r: ^Renderer) {
 	wgpu.RenderPipelineRelease(r.lighting_pipeline)
 	wgpu.PipelineLayoutRelease(r.lighting_pipeline_layout)
 
+	wgpu.RenderPipelineRelease(r.shadow_pipeline)
+	wgpu.PipelineLayoutRelease(r.shadow_pipeline_layout)
+
 	wgpu.TextureRelease(r.microui_atlas_texture)
+	wgpu.TextureRelease(r.shadow_texture)
 
 	wgpu.DeviceRelease(r.device)
 
