@@ -36,6 +36,7 @@ struct VertexInput {
 
 @vertex
 fn vs_main(in: VertexInput) -> @builtin(position) vec4<f32> {
+    // TODO: Find a way to handle shadows of normal objects too
     let world_pos = vec4<f32>(in.position * render_config.block_size, 1.0);
 
     return sun.view_proj * world_pos;
