@@ -6,13 +6,13 @@ import "vendor:wgpu"
 
 Material :: struct {
 	pipeline:        wgpu.RenderPipeline,
-	pipeline_layout: wgpu.PipelineLayout,
+	h_pipeline_layout: renderer.Handle,
 }
 
 material_create :: proc(
 	r: ^Renderer,
 	shader_src: string,
-	bind_group_layouts: []wgpu.BindGroupLayout,
+	bind_group_layouts: []renderer.Handle,
 ) -> Material {
 	shader_module := wgpu.DeviceCreateShaderModule(
 		r.device,
@@ -20,14 +20,7 @@ material_create :: proc(
 	)
 	defer wgpu.ShaderModuleRelease(shader_module)
 
-	pipeline_layout := wgpu.DeviceCreatePipelineLayout(
-		r.device,
-		&{
-			bindGroupLayouts = raw_data(bind_group_layouts[:]),
-			bindGroupLayoutCount = len(bind_group_layouts),
-			immediateSize = 0,
-		},
-	)
+	h_pipeline_layout := create_pipeline_layout(&r.renderer_manager, "material pipeline layout", bind_group_layouts)
 
 	vertex_layout := vertex_get_buffer_layout()
 
@@ -42,11 +35,24 @@ material_create :: proc(
 		}
 	}
 
+	color_targets := [2]wgpu.ColorTargetState{
+		{
+			format = .BGRA8Unorm,
+			blend = nil,
+			writeMask = wgpu.ColorWriteMaskFlags_All,
+		},
+		{
+			format = .RGBA16Float,
+			blend = nil,
+			writeMask = wgpu.ColorWriteMaskFlags_All,
+		},
+	}
+
 	pipeline := wgpu.DeviceCreateRenderPipeline(
 		r.device,
 		&{
 			label = "material render pipeline",
-			layout = pipeline_layout,
+			layout = get_pipeline_layout(&r.renderer_manager, h_pipeline_layout),
 			vertex = {
 				module = shader_module,
 				entryPoint = "vs_main",
@@ -56,11 +62,8 @@ material_create :: proc(
 			fragment = &{
 				module = shader_module,
 				entryPoint = "fs_main",
-				targetCount = 1,
-				targets = &wgpu.ColorTargetState {
-					format = .BGRA8Unorm,
-					writeMask = wgpu.ColorWriteMaskFlags_All,
-				},
+				targetCount = len(color_targets),
+				targets = raw_data(color_targets[:])
 			},
 			primitive = {
 				topology = .TriangleList,
@@ -81,10 +84,10 @@ material_create :: proc(
 
 	logger.info("[MATERIAL] Material created with shader")
 
-	return {pipeline = pipeline, pipeline_layout = pipeline_layout}
+	return {pipeline = pipeline, h_pipeline_layout = h_pipeline_layout}
 }
 
 material_destroy :: proc(material: ^Material) {
 	wgpu.RenderPipelineRelease(material.pipeline)
-	wgpu.PipelineLayoutRelease(material.pipeline_layout)
+	material.h_pipeline_layout = {}
 }

@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 import "core:math/linalg"
 
 import "../ecs"
@@ -100,6 +101,71 @@ game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 
 			c.aspect = f32(width) / f32(height)
 		}
+	}
+}
+
+game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector3f32) -> renderer.SunUniform {
+	norm_dir := linalg.vector_normalize(sun_dir)
+	
+	ortho_size: f32 = 100.0
+	resolution: f32 = 8192.0
+	texel_size := (ortho_size * 2.0) / resolution
+
+	forward := norm_dir
+	up_ref := linalg.Vector3f32{0.0, 1.0, 0.0}
+	
+	right := linalg.vector_normalize(linalg.vector_cross(up_ref, forward))
+	up := linalg.vector_normalize(linalg.vector_cross(forward, right))
+
+	proj_x := linalg.vector_dot(player_pos, right)
+	proj_y := linalg.vector_dot(player_pos, up)
+
+	snapped_x := math.floor(proj_x / texel_size) * texel_size
+	snapped_y := math.floor(proj_y / texel_size) * texel_size
+
+	dx := snapped_x - proj_x
+	dy := snapped_y - proj_y
+
+	snapped_target := player_pos + (right * dx) + (up * dy)
+	sun_pos := snapped_target - (norm_dir * 500.0)
+	
+	view_matrix := linalg.matrix4_look_at_f32(sun_pos, snapped_target, {0.0, 1.0, 0.0})
+
+	world_height: f32 = 80.0
+	vertical := linalg.Vector3f32{0.0, world_height, 0.0}
+
+	near_z: f32 = math.F32_MAX
+	far_z: f32 = math.F32_MIN
+
+	corners := [8]linalg.Vector3f32{
+		right * ortho_size + up * ortho_size + vertical,
+		right * ortho_size + up * ortho_size - vertical,
+		right * ortho_size - up * ortho_size + vertical,
+		right * ortho_size - up * ortho_size - vertical,
+		-right * ortho_size + up * ortho_size + vertical,
+		-right * ortho_size + up * ortho_size - vertical,
+		-right * ortho_size - up * ortho_size + vertical,
+		-right * ortho_size - up * ortho_size - vertical,
+	}
+
+	for corner in corners {
+		z := linalg.vector_dot(snapped_target + corner - sun_pos, forward)
+		near_z = math.min(near_z, z)
+		far_z = math.max(far_z, z)
+	}
+
+	near: f32 = math.max(near_z, 1.0)
+	far: f32 = math.max(far_z, near + 100.0)
+
+	proj_matrix := linalg.MATRIX4F32_IDENTITY
+	proj_matrix[0, 0] = 1.0 / ortho_size
+	proj_matrix[1, 1] = 1.0 / ortho_size
+	proj_matrix[2, 2] = 1.0 / (near - far)
+	proj_matrix[2, 3] = near / (near - far)
+
+	return {
+		view_proj = proj_matrix * view_matrix,
+		direction = {norm_dir.x, norm_dir.y, norm_dir.z, 0.0},
 	}
 }
 

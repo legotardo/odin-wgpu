@@ -1,9 +1,6 @@
 package game
 
-import "core:fmt"
 import "core:sync"
-import "core:math"
-import "core:math/linalg"
 import "core:thread"
 import "../constants"
 import "../ecs"
@@ -43,7 +40,6 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
 	blocks_placed: i32 = 0
-	// blocks_stamped: i32 = 0
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
@@ -163,6 +159,17 @@ chunk_generate_decoration :: proc(t: thread.Task) {
 	}
 }
 
+chunk_generate_missing_blocks :: proc(t: thread.Task) {
+	free_all(context.temp_allocator)
+
+	data := cast(^ChunkGenMissingBlocksData)t.data
+	entity_index := ecs.entity_index(data.entity)
+
+	chunk := &data.world.chunks[entity_index]
+
+	apply_missing_blocks(data.world, chunk, data.chunk_pos)
+}
+
 @(private)
 apply_missing_blocks :: proc(world: ^ecs.World, chunk: ^ecs.ChunkComponent, key: ecs.ChunkPos) -> int {
 	blocks_placed := 0
@@ -184,15 +191,4 @@ apply_missing_blocks :: proc(world: ^ecs.World, chunk: ^ecs.ChunkComponent, key:
 	}
 
 	return blocks_placed
-}
-
-chunk_generate_missing_blocks :: proc(t: thread.Task) {
-	free_all(context.temp_allocator)
-
-	data := cast(^ChunkGenMissingBlocksData)t.data
-	entity_index := ecs.entity_index(data.entity)
-
-	chunk := &data.world.chunks[entity_index]
-
-	apply_missing_blocks(data.world, chunk, data.chunk_pos)
 }

@@ -2,160 +2,26 @@ package renderer
 
 import "core:math/linalg"
 import "vendor:wgpu"
-import "../constants"
 
-// // // CAMERA
+lighting_shader_src := #load("../assets/shaders/lighting.wgsl")
+shadow_shader_src := #load("../assets/shaders/shadow.wgsl")
+
 CameraUniform :: struct {
 	view_proj: linalg.Matrix4f32,
+	view_proj_inv: linalg.Matrix4f32,
 	position: linalg.Vector3f32,
 	_pad: f32,
 }
 
-renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "camera buffer",
-			usage = {.Uniform, .CopyDst},
-			size = size_of(CameraUniform),
-		},
-	)
-
-	return buffer
+RenderConfigUniform :: struct {
+	render_distance: i32,
+	block_size: f32,
+	_padding: [2]i32,
 }
 
-renderer_update_camera_buffer :: proc(
-	r: ^Renderer,
-	uniform: CameraUniform,
-) {
-	mat := uniform
-	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(CameraUniform))
-}
-// // // CAMERA
-
-// // // PALETTE
-renderer_create_palette_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "palette buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(linalg.Vector4f32) * 256,
-		},
-	)
-
-	return buffer
-}
-
-renderer_update_palette_buffer :: proc(r: ^Renderer, colors: ^[256]linalg.Vector4f32) {
-	wgpu.QueueWriteBuffer(r.queue, r.palette_buffer, 0, colors, size_of(linalg.Vector4f32) * 256)
-}
-// // // PALETTE
-
-// // // DEPTH BUFFER
-renderer_create_depth_texture_view :: proc(device: wgpu.Device, s_config: ^wgpu.SurfaceConfiguration) -> wgpu.TextureView {
-	size := wgpu.Extent3D{
-		width = s_config.width,
-		height = s_config.height,
-		depthOrArrayLayers = 1,
-	}
-
-	descriptor := wgpu.TextureDescriptor {
-		label = "Depth Buffer Texture Descriptor",
-		size = size,
-		mipLevelCount = 1,
-		sampleCount = 1,
-		dimension = ._2D,
-		format = .Depth24Plus,
-		usage = {.RenderAttachment, .TextureBinding},
-		viewFormats = {}
-	}
-
-	texture := wgpu.DeviceCreateTexture(device, &descriptor)
-	// samples := wgpu.DeviceCreateSampler(r.device, &{
-	// 	addressModeU = .ClampToEdge,
-	// 	addressModeV = .ClampToEdge,
-	// 	addressModeW = .ClampToEdge,
-	// 	magFilter = .Linear,
-	// 	minFilter = .Linear,
-	// 	mipmapFilter = .Nearest,
-	// 	compare = .LessEqual,
-	// 	lodMinClamp = 0,
-	// 	lodMaxClamp = 100,
-	// })
-
-	depth_view := wgpu.TextureCreateView(texture, nil)
-
-	return depth_view
-}
-// // // DEPTH BUFFER
-
-// // // LIGHT
-renderer_create_light_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "light buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(u32) * 4 + size_of(LightData) * 10246,
-		},
-	)
-
-	return buffer
-}
-
-renderer_update_light_buffer :: proc(
-	r: ^Renderer,
-	lights: []LightData,
-) {
-	LightBufferHeader :: struct {
-		light_count: u32,
-		_pad1:       u32,
-		_pad2:       u32,
-		_pad3:       u32,
-	}
-
-	header := LightBufferHeader{
-		light_count = u32(len(lights)),
-	}
-
-	wgpu.QueueWriteBuffer(
-		r.queue,
-		r.light_buffer,
-		0,
-		&header,
-		size_of(LightBufferHeader)
-	)
-
-	wgpu.QueueWriteBuffer(
-		r.queue,
-		r.light_buffer,
-		u64(size_of(LightBufferHeader)),
-		raw_data(lights[:]),
-		size_of(LightData) * len(lights)
-	)
-}
-// // // LIGHT
-
-// // // INSTANCE
-renderer_create_instance_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "instance buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
-		},
-	)
-
-	return buffer
-}
-
-renderer_update_instance_buffer :: proc(
-	r: ^Renderer,
-	transforms: []linalg.Matrix4f32,
-) {
-		wgpu.QueueWriteBuffer(r.queue, r.instance_buffer, 0, raw_data(transforms), size_of(linalg.Matrix4f32) * len(transforms))
+SunUniform :: struct {
+	view_proj: linalg.Matrix4f32,
+	direction: linalg.Vector4f32,
 }
 
 renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f32 {
@@ -179,31 +45,102 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
 	return transforms
 }
 
-// // // Render Config
-RenderConfigUniform :: struct {
-	render_distance: i32,
-	block_size: f32,
-	_padding: [2]i32,
+recreate_gbuffer :: proc(r: ^Renderer, width, height: u32) {
+	create_target :: proc(
+		rm: ^RendererManager,
+		h_tex: ^Handle,
+		h_view: ^Handle,
+		width, height: u32,
+		format: wgpu.TextureFormat,
+		label: string,
+	) {
+		desc := wgpu.TextureDescriptor{
+			label = label,
+			size = {
+				width = width,
+				height = height,
+				depthOrArrayLayers = 1,
+			},
+			mipLevelCount = 1,
+			sampleCount = 1,
+			dimension = ._2D,
+			format = format,
+			usage = {.RenderAttachment, .TextureBinding},
+		}
+
+		if h_tex^ == 0 {
+			h_tex^ = create_texture(rm, &desc)
+			h_view^ = create_texture_view(rm, h_tex^, nil)
+		} else {
+			update_texture(rm, h_tex^, &desc)
+			update_texture_view(rm, h_view^, h_tex^, nil)
+		}
+	}
+
+	create_target(&r.renderer_manager, &r.h_gbuffer_albedo_texture, &r.h_gbuffer_albedo_view, width, height, .BGRA8Unorm, "g-buffer albedo")
+	create_target(&r.renderer_manager, &r.h_gbuffer_normal_texture, &r.h_gbuffer_normal_view, width, height, .RGBA16Float, "g-buffer normal")
+
+	// Sampler does not need to change after crated once
+	if r.h_gbuffer_sampler == 0 {
+		r.h_gbuffer_sampler = create_sampler(&r.renderer_manager, &{
+			label = "g-buffer sampler",
+			addressModeU = .ClampToEdge,
+			addressModeV = .ClampToEdge,
+			addressModeW = .ClampToEdge,
+			magFilter = .Nearest,
+			minFilter = .Nearest,
+			mipmapFilter = .Nearest,
+			maxAnisotropy = 1,
+		})
+	}
 }
 
-renderer_create_render_config_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "render config buffer",
-			usage = {.Uniform, .CopyDst},
-			size = size_of(RenderConfigUniform),
+@(private)
+recreate_depth_buffer :: proc(r: ^Renderer, width, height: u32) {
+	texture_desc := wgpu.TextureDescriptor{
+		label = "depth buffer texture",
+		size = {
+			width = width,
+			height = height,
+			depthOrArrayLayers = 1,
 		},
-	)
+		mipLevelCount = 1,
+		sampleCount = 1,
+		dimension = ._2D,
+		format = .Depth24Plus,
+		usage = {.RenderAttachment, .TextureBinding},
+		viewFormats = {}
+	}
+	if r.h_depth_texture == 0 {
+		r.h_depth_texture = create_texture(&r.renderer_manager, &texture_desc)
+	} else {
+		update_texture(&r.renderer_manager, r.h_depth_texture, &texture_desc)
+	}
 
-	return buffer
+	if r.h_depth_texture_view == 0 {
+		r.h_depth_texture_view = create_texture_view(&r.renderer_manager, r.h_depth_texture, nil)
+	} else {
+		update_texture_view(&r.renderer_manager, r.h_depth_texture_view, r.h_depth_texture, nil)
+	}
 }
 
-renderer_update_render_config_buffer :: proc(
-	r: ^Renderer,
-	uniform: RenderConfigUniform,
-) {
-	mat := uniform
-	wgpu.QueueWriteBuffer(r.queue, r.render_config_buffer, 0, &mat, size_of(RenderConfigUniform))
+@(private)
+recreate_lighting_bind_group :: proc(r: ^Renderer) {
+	entries := []wgpu.BindGroupEntry{
+		{ binding = 0, textureView = get_texture_view(&r.renderer_manager, r.h_gbuffer_albedo_view) },
+		{ binding = 1, textureView = get_texture_view(&r.renderer_manager, r.h_gbuffer_normal_view) },
+		{ binding = 2, textureView = get_texture_view(&r.renderer_manager, r.h_depth_texture_view) },
+		{ binding = 3, sampler = get_sampler(&r.renderer_manager, r.h_gbuffer_sampler) },
+		{ binding = 4, buffer = get_buffer(&r.renderer_manager, r.h_camera_buffer), offset = 0, size = size_of(CameraUniform) },
+		{ binding = 5, buffer = get_buffer(&r.renderer_manager, r.h_render_config_buffer), offset = 0, size = size_of(RenderConfigUniform) },
+		{ binding = 6, buffer = get_buffer(&r.renderer_manager, r.h_sun_buffer), offset = 0, size = size_of(SunUniform) },
+		{ binding = 7, textureView = get_texture_view(&r.renderer_manager, r.h_shadow_texture_view) },
+		{ binding = 8, sampler = get_sampler(&r.renderer_manager, r.h_shadow_sampler) },
+	}
+
+	if r.h_lighting_bind_group == 0 {
+		r.h_lighting_bind_group = create_bind_group(&r.renderer_manager, "lighting bind group", r.h_lighting_bind_group_layout, entries)
+	} else {
+		update_bind_group(&r.renderer_manager, r.h_lighting_bind_group, "lighting bind group", r.h_lighting_bind_group_layout, entries)
+	}
 }
-// // // Render Config

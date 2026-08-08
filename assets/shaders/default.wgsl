@@ -10,37 +10,16 @@ struct PaletteUniform {
     color: array<vec4<f32>, 256>,
 }
 
-struct Light {
-    position: vec3<f32>,
-    light_type: u32,
-
-    direction: vec3<f32>,
-    intensity: f32,
-
-    color: vec3<f32>,
-    range: f32,
-}
-
-struct LightBuffer {
-    light_count: u32,
-    _pad: vec3<u32>,
-    lights: array<Light>,
-}
-
-struct InstanceBuffer {
-    models: array<mat4x4<f32>>,
-}
-
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(0) @binding(1) var<uniform> render_config: RenderConfig;
 @group(0) @binding(2) var<storage, read> palette: PaletteUniform;
-@group(0) @binding(3) var<storage, read> light_data: LightBuffer;
-@group(0) @binding(4) var<storage, read> instance_data: InstanceBuffer;
+@group(0) @binding(3) var<storage, read> instances: array<mat4x4<f32>>;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) @interpolate(flat) material_id: u32,
     @location(2) @interpolate(flat) normal_id: u32,
+    @builtin(instance_index) instance_idx: u32,
 };
 
 struct VertexOutput {
@@ -52,8 +31,8 @@ struct VertexOutput {
 };
 
 @vertex
-fn vs_main(in: VertexInput, @builtin(instance_index) instance_idx: u32) -> VertexOutput {
-    let model = instance_data.models[instance_idx];
+fn vs_main(in: VertexInput) -> VertexOutput {
+    let model = instances[in.instance_idx];
     let world_pos = model * vec4<f32>(in.position, 1.0);
 
     var out: VertexOutput;
