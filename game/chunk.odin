@@ -249,9 +249,10 @@ system_chunk_generate :: proc(state: ^GameState, dt: f32) {
 		}
 
 		if chunk.state == .PendingMesh {
-			// TODO: Probably is better to call this in a thread
-			// for now is causing cpu spikes
-			// apply_missing_blocks(state.world, chunk, ecs.ChunkPos{cx, cy, cz})
+			if _, ok := &state.world.chunk_missing_blocks[{ cx, cy, cz }]; ok {
+				chunk.state = .PendingMissingBlocks
+				continue
+			}
 
 			if chunk.is_empty {
 				chunk.state = .Done
