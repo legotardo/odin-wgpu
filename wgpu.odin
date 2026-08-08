@@ -125,7 +125,7 @@ update :: proc(dt: f32) {
 
 	cam_matrix := game.game_get_camera_matrix(&state.game_state)
 	cam_pos := game.game_get_camera_eye(&state.game_state)
-	renderer.renderer_update_camera_buffer(&state.renderer, { 
+	renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_camera_buffer, renderer.CameraUniform{ 
 		view_proj = cam_matrix,
 		view_proj_inv = linalg.matrix4_inverse(cam_matrix),
 		position = cam_pos

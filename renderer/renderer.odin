@@ -5,12 +5,16 @@ import "core:math/linalg"
 import mu "vendor:microui"
 
 import "../platform"
+import "../constants"
 
 Renderer :: struct {
 	device:        wgpu.Device,
 	queue:         wgpu.Queue,
 	window: ^platform.Window,
+	renderer_manager: RendererManager,
 	use_wireframe: bool,
+
+	h_camera_buffer: Handle,
 
 	global_bind_group:   wgpu.BindGroup,
 	microui_bind_group:   wgpu.BindGroup,
@@ -23,7 +27,6 @@ Renderer :: struct {
 	sun_layout_group:   wgpu.BindGroupLayout,
 
 	palette_buffer: wgpu.Buffer,
-	camera_buffer:  wgpu.Buffer,
 	render_config_buffer: wgpu.Buffer,
 	// light_buffer: wgpu.Buffer,
 	instance_buffer: wgpu.Buffer,
@@ -75,7 +78,15 @@ renderer_init :: proc(
 	window: ^platform.Window,
 	microui_ctx: ^mu.Context
 ) -> Renderer {
-	camera_buffer := renderer_create_camera_buffer(device)
+	renderer_manager := renderer_manager_init(device, queue)
+
+	h_camera_buffer := create_buffer(&renderer_manager, &{
+		label = "camera buffer",
+		usage = {.Uniform, .CopyDst},
+		size = size_of(CameraUniform),
+	})
+
+	// camera_buffer := renderer_create_camera_buffer(device)
 	palette_buffer := renderer_create_palette_buffer(device)
 	render_config_buffer := renderer_create_render_config_buffer(device)
 	// light_buffer := renderer_create_light_buffer(device)
@@ -95,10 +106,55 @@ renderer_init :: proc(
 	sun_buffer := renderer_create_sun_buffer(device)
 	sun_bind_group, sun_layout_group := renderer_create_sun_bind_group(device, sun_buffer)
 
+	// h_global_layout_group := create_bind_group_layout(&renderer_manager, "global layout group", {
+	// 	{
+	// 		binding = 0,
+	// 		visibility = {.Vertex, .Fragment},
+	// 		buffer = {
+	// 			type = .Uniform,
+	// 			hasDynamicOffset = false,
+	// 			minBindingSize = size_of(CameraUniform),
+	// 		},
+	// 	},
+	// 	{
+	// 		binding = 1,
+	// 		visibility = {.Vertex, .Fragment},
+	// 		buffer = {
+	// 			type = .Uniform,
+	// 			hasDynamicOffset = false,
+	// 			minBindingSize = size_of(RenderConfigUniform),
+	// 		},
+	// 	},
+	// 	{
+	// 		binding = 2,
+	// 		visibility = {.Fragment},
+	// 		buffer = {
+	// 			type = .ReadOnlyStorage,
+	// 			hasDynamicOffset = false,
+	// 			minBindingSize = size_of(linalg.Vector4f32) * 256,
+	// 		},
+	// 	},
+	// 	{
+	// 		binding = 3,
+	// 		visibility = {.Vertex},
+	// 		buffer = {
+	// 			type = .ReadOnlyStorage,
+	// 			hasDynamicOffset = false,
+	// 			minBindingSize = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
+	// 		},
+	// 	},
+	// })
+	// h_global_bind_group := create_bind_group(&renderer_manager, "global bind group", h_global_layout_group, {
+	// 	{binding = 0, buffer = get_buffer(&renderer_manager, h_camera_buffer), size = size_of(CameraUniform)},
+	// 	{binding = 1, buffer = render_config_buffer, size = size_of(RenderConfigUniform)},
+	// 	{binding = 2, buffer = palette_buffer, size = size_of(linalg.Vector4f32) * 256},
+	// 	{binding = 3, buffer = instance_buffer, size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},
+	// })
+
 	global_bind_group, global_layout_group := renderer_create_global_bind_group(
 		device,
 		palette_buffer,
-		camera_buffer,
+		get_buffer(&renderer_manager, h_camera_buffer),
 		// light_buffer,
 		instance_buffer,
 		render_config_buffer,
@@ -107,7 +163,7 @@ renderer_init :: proc(
 		device,
 		&gbuffer,
 		depth_texture_view,
-		camera_buffer, 
+		get_buffer(&renderer_manager, h_camera_buffer), 
 		render_config_buffer,
 		sun_buffer,
 		shadow_texture_view,
@@ -135,10 +191,13 @@ renderer_init :: proc(
 		device = device,
 		queue = queue,
 		window = window,
+		renderer_manager = renderer_manager,
 		use_wireframe = false,
+
+		h_camera_buffer = h_camera_buffer,
+
 		global_bind_group = global_bind_group,
 		global_layout_group = global_layout_group,
-		camera_buffer = camera_buffer,
 		palette_buffer = palette_buffer,
 		depth_texture_view = depth_texture_view,
 		// light_buffer = light_buffer,
@@ -383,7 +442,7 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 		r.device,
 		&r.gbuffer,
 		r.depth_texture_view,
-		r.camera_buffer,
+		get_buffer(&r.renderer_manager, r.h_camera_buffer),
 		r.render_config_buffer,
 		r.sun_buffer,
 		r.shadow_texture_view,
@@ -394,7 +453,9 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 }
 
 renderer_destroy :: proc(r: ^Renderer) {
-	wgpu.BufferRelease(r.camera_buffer)
+	renderer_manager_destroy(&r.renderer_manager)
+
+	// wgpu.BufferRelease(r.camera_buffer)
 	wgpu.BufferRelease(r.palette_buffer)
 	// wgpu.BufferRelease(r.light_buffer)
 	wgpu.BufferRelease(r.instance_buffer)

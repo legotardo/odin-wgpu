@@ -7,7 +7,6 @@ import "../constants"
 lighting_shader_src := #load("../assets/shaders/lighting.wgsl")
 shadow_shader_src := #load("../assets/shaders/shadow.wgsl")
 
-// // // CAMERA
 CameraUniform :: struct {
 	view_proj: linalg.Matrix4f32,
 	view_proj_inv: linalg.Matrix4f32,
@@ -15,27 +14,26 @@ CameraUniform :: struct {
 	_pad: f32,
 }
 
-renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "camera buffer",
-			usage = {.Uniform, .CopyDst},
-			size = size_of(CameraUniform),
-		},
-	)
+// renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
+// 	buffer := wgpu.DeviceCreateBuffer(
+// 		device,
+// 		&{
+// 			label = "camera buffer",
+// 			usage = {.Uniform, .CopyDst},
+// 			size = size_of(CameraUniform),
+// 		},
+// 	)
 
-	return buffer
-}
+// 	return buffer
+// }
 
-renderer_update_camera_buffer :: proc(
-	r: ^Renderer,
-	uniform: CameraUniform,
-) {
-	mat := uniform
-	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(CameraUniform))
-}
-// // // CAMERA
+// renderer_update_camera_buffer :: proc(
+// 	r: ^Renderer,
+// 	uniform: CameraUniform,
+// ) {
+// 	mat := uniform
+// 	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(CameraUniform))
+// }
 
 // // // PALETTE
 renderer_create_palette_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
