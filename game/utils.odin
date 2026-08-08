@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 import "core:math/linalg"
 
 import "../ecs"
@@ -105,11 +106,31 @@ game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
 
 game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector3f32) -> renderer.SunUniform {
 	norm_dir := linalg.vector_normalize(sun_dir)
-	sun_pos := player_pos - (norm_dir * 500.0)
-
-	view_matrix := linalg.matrix4_look_at_f32(sun_pos, player_pos, { 0, 1, 0 })
-
+	
 	ortho_size: f32 = 120.0
+	resolution: f32 = 4096.0
+	texel_size := (ortho_size * 2.0) / resolution
+
+	forward := norm_dir
+	up_ref := linalg.Vector3f32{0.0, 1.0, 0.0}
+	
+	right := linalg.vector_normalize(linalg.vector_cross(up_ref, forward))
+	up := linalg.vector_normalize(linalg.vector_cross(forward, right))
+
+	proj_x := linalg.vector_dot(player_pos, right)
+	proj_y := linalg.vector_dot(player_pos, up)
+
+	snapped_x := math.floor(proj_x / texel_size) * texel_size
+	snapped_y := math.floor(proj_y / texel_size) * texel_size
+
+	dx := snapped_x - proj_x
+	dy := snapped_y - proj_y
+
+	snapped_target := player_pos + (right * dx) + (up * dy)
+	sun_pos := snapped_target - (norm_dir * 500.0)
+	
+	view_matrix := linalg.matrix4_look_at_f32(sun_pos, snapped_target, {0.0, 1.0, 0.0})
+
 	near: f32 = 0.1
 	far: f32 = 1000.0
 
@@ -121,7 +142,7 @@ game_calculate_sun :: proc(player_pos: linalg.Vector3f32, sun_dir: linalg.Vector
 
 	return {
 		view_proj = proj_matrix * view_matrix,
-		direction = {norm_dir.x, norm_dir.y, norm_dir.z, 0},
+		direction = {norm_dir.x, norm_dir.y, norm_dir.z, 0.0},
 	}
 }
 

@@ -154,7 +154,6 @@ renderer_init :: proc(
         maxAnisotropy = 1,
 	})
 
-
 	r.h_shadow_texture = create_texture(&r.renderer_manager, &{
 		label = "shadow map texture",
 		size = {
@@ -176,13 +175,11 @@ renderer_init :: proc(
 		addressModeU = .ClampToEdge,
 		addressModeV = .ClampToEdge,
 		addressModeW = .ClampToEdge,
-		magFilter = .Linear,
-		minFilter = .Linear,
+		magFilter = .Nearest,
+		minFilter = .Nearest,
 		mipmapFilter = .Nearest,
-		compare = .Less,
 		maxAnisotropy = 1,
 	})
-
 
 	r.h_global_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "global layout group", {
 		{
@@ -304,7 +301,7 @@ renderer_init :: proc(
 		{
 			binding = 8,
 			visibility = {.Fragment},
-			sampler = { type = .Comparison },
+			sampler = { type = .NonFiltering },
 		},
 	})
 
