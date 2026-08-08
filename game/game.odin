@@ -24,40 +24,32 @@ GameState :: struct {
 	world:    ^ecs.World,
 	window:   ^platform.Window,
 	palette: Palette,
-	
 	thread_pool: ^thread.Pool,
-
 	mu_ctx: ^mu.Context,
-
+	dispatcher: ECSDispatcher,
 	frame_stats: FrameStats,
 
 	player_idx: u32,
+	last_player_cx: i32,
+	last_player_cy: i32,
+	last_player_cz: i32,
 }
 
-game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> GameState {
-	assets := assets_init()
-	input := input.input_init()
-	world := ecs.world_init()
-	palette := palette_init_default()
-	thread_pool := new(thread.Pool)
+game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> (state: GameState) {
+	state.renderer = r
+	state.mu_ctx = mu_ctx
+	state.window = window
+	state.assets = assets_init()
+	state.input = input.input_init()
+	state.world = ecs.world_init()
+	state.palette = palette_init_default()
+	state.thread_pool = new(thread.Pool)
+	state.dispatcher = ecs_dispatcher_init(20.0)
 
 	num_cpus := platform.get_num_cores()
-	thread.pool_init(thread_pool, context.allocator, num_cpus - 1)
-	thread.pool_start(thread_pool)
+	thread.pool_init(state.thread_pool, context.allocator, num_cpus - 1)
+	thread.pool_start(state.thread_pool)
 
-	return {
-		assets = assets,
-		renderer = r,
-		world = world,
-		input = input,
-		window = window,
-		palette = palette,
-		thread_pool = thread_pool,
-		mu_ctx = mu_ctx,
-	}
-}
-
-game_awake :: proc(state: ^GameState) {
 	// assets
 	default_material := assets_register_material(
 		&state.assets,
@@ -86,70 +78,28 @@ game_awake :: proc(state: ^GameState) {
 	)
 	// assets
 
-	// quad := ecs.entity_create(state.world)
-	// ecs.entity_add_transform(state.world, quad, {})
-	// ecs.entity_add_render(
-	// 	state.world,
-	// 	quad,
-	// 	{mesh = string(quad_mesh), material = string(minimal_material)},
-	// )
-
-	// light := ecs.entity_create(state.world)
-	// ecs.entity_add_transform(state.world, light, {position = {5, 2, 5}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
-	// ecs.entity_add_light(
-	// 	state.world,
-	// 	light,
-	// 	{
-	// 		color = {1, 1, 1},
-	// 		intensity = 10,
-	// 		light_type = .Point,
-	// 		range = 200,
-	// 	},
-	// )
-	// ecs.entity_add_render(
-	// 	state.world,
-	// 	light,
-	// 	{mesh = string(quad_mesh), material = string(default_material)},
-	// )
-
-	// light2 := ecs.entity_create(state.world)
-	// ecs.entity_add_transform(state.world, light2, {position = {1, 5, 1}, scale = {0.5, 0.5, 0.5}, rotation = linalg.QUATERNIONF32_IDENTITY })
-	// ecs.entity_add_light(
-	// 	state.world,
-	// 	light2,
-	// 	{
-	// 		color = {1, 1, 1},
-	// 		intensity = 10,
-	// 		light_type = .Directional,
-	// 		direction = {0, -1, 0}
-	// 	},
-	// )
-	// ecs.entity_add_render(
-	// 	state.world,
-	// 	light2,
-	// 	{mesh = string(quad_mesh), material = string(default_material)},
-	// )
-
 	assets_register_voxel_prefab(&state.assets, "tree", vox_model_load(teapot_vox))
 	assets_register_voxel_prefab(&state.assets, "cactus", vox_model_load(cactus_vox))
 	assets_register_voxel_prefab(&state.assets, "test", vox_model_load(test_vox))
 	
-	biome_catalog_init(state)
-	game_change_render_distance(state, 2)
-	spawn_player(state)
+	biome_catalog_init(&state)
+	game_change_render_distance(&state, 5)
+	spawn_player(&state)
+
+	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_spawner)
+	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_generate)
+
+	ecs_dispatcher_add_frame(&state.dispatcher, system_resolve_thread_tasks)
+	ecs_dispatcher_add_frame(&state.dispatcher, system_physics)
+	ecs_dispatcher_add_frame(&state.dispatcher, system_update_player)
+
+	return state
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
 	frame_stats_push(&state.frame_stats, dt)
 
-	system_physics(state, dt)
-	system_update_player(state, dt)
-	system_update_lights(state)
-
-	system_chunk_spawner(state)
-	system_chunk_generate(state)
-
-	system_resolve_thread_tasks(state)
+	ecs_dispatcher_update(&state.dispatcher, state, dt)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
 		state.renderer.use_wireframe = !state.renderer.use_wireframe

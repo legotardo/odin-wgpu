@@ -1,6 +1,5 @@
 package ecs
 
-import "../renderer"
 import "../constants"
 import "core:math/linalg"
 

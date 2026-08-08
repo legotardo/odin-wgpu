@@ -23,7 +23,7 @@ NEIGHBOR_OFFSETS :: [6][3]i32{
 	{ 0,  0,  1}, // n5: Front
 }
 
-system_chunk_spawner :: proc(state: ^GameState) {
+system_chunk_spawner :: proc(state: ^GameState, dt: f32) {
 	player_pos := state.world.transforms[state.player_idx].position
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 	
@@ -70,9 +70,6 @@ system_chunk_spawner :: proc(state: ^GameState) {
 		}
 	}
 
-	chunks_created_this_frame := 0
-	max_chunks_per_frame := 4
-
 	player_cx := i32(math.floor(player_pos.x / cs_world))
 	player_cy := i32(math.floor(player_pos.y / cs_world))
 	player_cz := i32(math.floor(player_pos.z / cs_world))
@@ -88,10 +85,6 @@ system_chunk_spawner :: proc(state: ^GameState) {
 			
 			delete(list)
 			append(&missing_to_prune, coord)
-
-			if len(missing_to_prune) >= 4 { 
-				break
-			}
 		}
 	}
 	
@@ -100,36 +93,39 @@ system_chunk_spawner :: proc(state: ^GameState) {
 	}
 	sync.mutex_unlock(&state.world.chunk_missing_blocks_mu)
 
-	for offset in state.world.chunk_spawn_offset {
-		target_coord := [3]i32{
-			player_cx + offset.x,
-			player_cy + offset.y,
-			player_cz + offset.z,
+	if player_cx != state.last_player_cx || player_cy != state.last_player_cy || player_cz != state.last_player_cz {
+		for offset in state.world.chunk_spawn_offset {
+			target_coord := [3]i32{
+				player_cx + offset.x,
+				player_cy + offset.y,
+				player_cz + offset.z,
+			}
+
+			if world_get_chunk_at(state.world, target_coord) == -1 {
+				chunk := ecs.entity_create(state.world)
+				ecs.entity_add_transform(state.world, chunk, {
+					position = {
+						f32(target_coord.x) * cs_world, 
+						f32(target_coord.y) * cs_world, 
+						f32(target_coord.z) * cs_world
+					},
+					scale = {1, 1, 1},
+				})
+				ecs.entity_add_chunk(state.world, chunk, { 
+					state = .PendingTerrain,
+					coord = {target_coord.x, target_coord.y, target_coord.z},
+				})
+				state.world.chunk_map[target_coord] = int(ecs.entity_index(chunk))
+			}
 		}
 
-		if world_get_chunk_at(state.world, target_coord) == -1 {
-			chunk := ecs.entity_create(state.world)
-			ecs.entity_add_transform(state.world, chunk, {
-				position = {
-					f32(target_coord.x) * cs_world, 
-					f32(target_coord.y) * cs_world, 
-					f32(target_coord.z) * cs_world
-				},
-				scale = {1, 1, 1},
-			})
-			ecs.entity_add_chunk(state.world, chunk, { 
-				state = .PendingTerrain,
-				coord = {target_coord.x, target_coord.y, target_coord.z},
-			})
-			state.world.chunk_map[target_coord] = int(ecs.entity_index(chunk))
-
-			chunks_created_this_frame += 1
-			if chunks_created_this_frame >= max_chunks_per_frame do break
-		}
+		state.last_player_cx = player_cx
+		state.last_player_cy = player_cy
+		state.last_player_cz = player_cz
 	}
 }
 
-system_chunk_generate :: proc(state: ^GameState) {
+system_chunk_generate :: proc(state: ^GameState, dt: f32) {
 	mask := ecs.ComponentMask{.TransformComponent, .ChunkComponent}
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
 	cam_pos := game_get_camera_eye(state)

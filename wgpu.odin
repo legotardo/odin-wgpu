@@ -85,7 +85,6 @@ wgpu_init :: proc(window: ^platform.Window) {
 
 		state.renderer = renderer.renderer_init(device, queue, &state.config, &state.window, mu_ctx)
 		state.game_state = game.game_init(&state.renderer, &state.window, mu_ctx)
-		game.game_awake(&state.game_state)
 		renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_palette_buffer, &state.game_state.palette.colors)
 
 		platform.prepare_context(&state.window)

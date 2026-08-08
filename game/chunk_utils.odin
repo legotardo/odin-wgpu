@@ -218,6 +218,13 @@ world_stamp_prefab :: proc(
 	// chunk_set_block_fast(chunk, chunk_local_position[0], chunk_local_position[1] - 1, chunk_local_position[2], b_idx)
 	// blocks_stamped += 1
 
+	MissingBlockTemp :: struct {
+		key: ecs.ChunkPos,
+		mb: ecs.ChunkMissingBlock,
+	}
+	
+	local_missing_blocks := make([dynamic]MissingBlockTemp, context.temp_allocator)
+
 	for py in 0 ..< prefab.height {
 		for pz in 0 ..< prefab.depth {
 			for px in 0 ..< prefab.width {
@@ -239,6 +246,7 @@ world_stamp_prefab :: proc(
 				if cx < 0 || cx >= constants.CHUNK_SIZE ||
                    cy < 0 || cy >= constants.CHUNK_SIZE ||
                    cz < 0 || cz >= constants.CHUNK_SIZE {
+					
 					target_chunk_x := i32(math.floor(f32(block_world_x) / f32(constants.CHUNK_SIZE)))
 					target_chunk_y := i32(math.floor(f32(block_world_y) / f32(constants.CHUNK_SIZE)))
 					target_chunk_z := i32(math.floor(f32(block_world_z) / f32(constants.CHUNK_SIZE)))
@@ -247,20 +255,15 @@ world_stamp_prefab :: proc(
 					cy = (cy % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
 					cz = (cz % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
 
-					sync.mutex_lock(&world.chunk_missing_blocks_mu)
-					key := ecs.ChunkPos{target_chunk_x, target_chunk_y, target_chunk_z}
-					list, ok := &world.chunk_missing_blocks[key]
-					if !ok {
-						world.chunk_missing_blocks[key] = make([dynamic]ecs.ChunkMissingBlock)
-						list = &world.chunk_missing_blocks[key]
-					}
-					append(list, ecs.ChunkMissingBlock{
-						block = block,
-						x = cx,
-						y = cy,
-						z = cz,
+					append(&local_missing_blocks, MissingBlockTemp{
+						key = ecs.ChunkPos{target_chunk_x, target_chunk_y, target_chunk_z},
+						mb = ecs.ChunkMissingBlock{
+							block = block,
+							x = cx,
+							y = cy,
+							z = cz,
+						},
 					})
-					sync.mutex_unlock(&world.chunk_missing_blocks_mu)
 
 					continue
                 }
@@ -270,6 +273,19 @@ world_stamp_prefab :: proc(
 				blocks_stamped += 1
 			}
 		}
+	}
+
+	if len(local_missing_blocks) > 0 {
+		sync.mutex_lock(&world.chunk_missing_blocks_mu)
+		for item in local_missing_blocks {
+			list, ok := &world.chunk_missing_blocks[item.key]
+			if !ok {
+				world.chunk_missing_blocks[item.key] = make([dynamic]ecs.ChunkMissingBlock)
+				list = &world.chunk_missing_blocks[item.key]
+			}
+			append(list, item.mb)
+		}
+		sync.mutex_unlock(&world.chunk_missing_blocks_mu)
 	}
 
 	return blocks_stamped

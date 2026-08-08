@@ -45,7 +45,7 @@ ChunkGenMissingBlocksData :: struct {
 
 TASKS_LIMIT :: 100
 
-system_resolve_thread_tasks :: proc(state: ^GameState) {
+system_resolve_thread_tasks :: proc(state: ^GameState, dt: f32) {
 	current_tasks_count := 0
 
 	for thread.pool_num_done(state.thread_pool) > 0 {
