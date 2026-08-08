@@ -48,8 +48,11 @@ Renderer :: struct {
 	h_shadow_pipeline_layout: Handle,
 	h_lighting_pipeline: Handle,
 	h_lighting_pipeline_layout: Handle,
-
-	gbuffer: GBuffer,
+	h_gbuffer_albedo_texture: Handle,
+	h_gbuffer_albedo_view: Handle,
+	h_gbuffer_normal_texture: Handle,
+	h_gbuffer_normal_view: Handle,
+	h_gbuffer_sampler: Handle,
 }
 
 RenderItem :: struct {
@@ -151,7 +154,6 @@ renderer_init :: proc(
         maxAnisotropy = 1,
 	})
 
-	recreate_depth_buffer(&r, s_config.width, s_config.height)
 
 	r.h_shadow_texture = create_texture(&r.renderer_manager, &{
 		label = "shadow map texture",
@@ -181,7 +183,6 @@ renderer_init :: proc(
 		maxAnisotropy = 1,
 	})
 
-	r.gbuffer = renderer_create_gbuffer(device, s_config)
 
 	r.h_global_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "global layout group", {
 		{
@@ -306,7 +307,6 @@ renderer_init :: proc(
 			sampler = { type = .Comparison },
 		},
 	})
-	recreate_lighting_bind_group(&r)
 
 	r.h_microui_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "microui layout group", {
 		{
@@ -468,6 +468,10 @@ renderer_init :: proc(
 		multisample = {count = 1, mask = 0xFFFFFFFF},
 	})
 
+	recreate_depth_buffer(&r, s_config.width, s_config.height)
+	recreate_gbuffer(&r, s_config.width, s_config.height)
+	recreate_lighting_bind_group(&r)
+
 	microui_update_atlas_texture(queue, get_texture(&r.renderer_manager, r.h_microui_atlas_texture))
 	microui_update_constant(queue, get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), window)
 
@@ -544,14 +548,14 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 
 	attachments := [2]wgpu.RenderPassColorAttachment{
 		{ 
-			view = r.gbuffer.albedo_view,
+			view = get_texture_view(&r.renderer_manager, r.h_gbuffer_albedo_view),
 			loadOp = .Clear,
 			storeOp = .Store,
 			clearValue = {0.333, 0.721, 1.0, 1.0},
 			depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
 		},
 		{ 
-			view = r.gbuffer.normal_view,
+			view = get_texture_view(&r.renderer_manager, r.h_gbuffer_normal_view),
 			loadOp = .Clear,
 			storeOp = .Store,
 			clearValue = {0.0, 0.0, 0.0, 0.0},
@@ -670,10 +674,8 @@ renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
 }
 
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
-	renderer_destroy_gbuffer(&r.gbuffer)
-
 	recreate_depth_buffer(r, s_config.width, s_config.height)
-	r.gbuffer = renderer_create_gbuffer(r.device, s_config)
+	recreate_gbuffer(r, s_config.width, s_config.height)
 	recreate_lighting_bind_group(r)
 
 	microui_update_constant(r.queue, get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), r.window)
@@ -681,8 +683,6 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 
 renderer_destroy :: proc(r: ^Renderer) {
 	renderer_manager_destroy(&r.renderer_manager)
-
-	renderer_destroy_gbuffer(&r.gbuffer)
 
 	wgpu.DeviceRelease(r.device)
 	wgpu.QueueRelease(r.queue)
