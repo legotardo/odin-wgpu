@@ -44,7 +44,6 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	state.world = ecs.world_init()
 	state.palette = palette_init_default()
 	state.thread_pool = new(thread.Pool)
-	state.dispatcher = ecs_dispatcher_init(20.0)
 
 	num_cpus := platform.get_num_cores()
 	thread.pool_init(state.thread_pool, context.allocator, num_cpus - 1)
@@ -86,6 +85,8 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	game_change_render_distance(&state, 5)
 	spawn_player(&state)
 
+	state.dispatcher = ecs_dispatcher_init(20.0)
+
 	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_spawner)
 	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_generate)
 
@@ -97,6 +98,8 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 }
 
 game_update :: proc(state: ^GameState, dt: f32) {
+	free_all(context.temp_allocator)
+
 	frame_stats_push(&state.frame_stats, dt)
 
 	ecs_dispatcher_update(&state.dispatcher, state, dt)

@@ -23,6 +23,8 @@ NEIGHBOR_OFFSETS :: [6][3]i32{
 	{ 0,  0,  1}, // n5: Front
 }
 
+MAX_MISSING_BLOCKS_SCAN :: 512
+
 system_chunk_spawner :: proc(state: ^GameState, dt: f32) {
 	player_pos := state.world.transforms[state.player_idx].position
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
@@ -78,7 +80,11 @@ system_chunk_spawner :: proc(state: ^GameState, dt: f32) {
 	missing_to_prune := make([dynamic]ecs.ChunkPos, context.temp_allocator)
 
 	sync.mutex_lock(&state.world.chunk_missing_blocks_mu)
+	scanned := 0
 	for coord, list in state.world.chunk_missing_blocks {
+		if scanned >= MAX_MISSING_BLOCKS_SCAN do break
+		scanned += 1
+
 		if math.abs(coord.x - player_cx) > prune_limit ||
 		   math.abs(coord.y - player_cy) > prune_limit ||
 		   math.abs(coord.z - player_cz) > prune_limit {
@@ -243,7 +249,9 @@ system_chunk_generate :: proc(state: ^GameState, dt: f32) {
 		}
 
 		if chunk.state == .PendingMesh {
-			apply_missing_blocks(state.world, chunk, ecs.ChunkPos{cx, cy, cz})
+			// TODO: Probably is better to call this in a thread
+			// for now is causing cpu spikes
+			// apply_missing_blocks(state.world, chunk, ecs.ChunkPos{cx, cy, cz})
 
 			if chunk.is_empty {
 				chunk.state = .Done

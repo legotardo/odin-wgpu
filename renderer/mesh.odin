@@ -1,6 +1,5 @@
 package renderer
 
-import "../logger"
 import "vendor:wgpu"
 
 Mesh :: struct {
@@ -22,8 +21,6 @@ mesh_create :: proc(r: ^Renderer, vertices: []Vertex, indices: []u16) -> Mesh {
 		&{label = "index buffer", usage = {.Index}},
 		indices[:],
 	)
-
-	logger.info("[MESH] Mesh created")
 
 	index_count := u32(len(indices))
 	vertex_count := u32(len(vertices))

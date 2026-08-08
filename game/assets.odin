@@ -34,8 +34,6 @@ assets_register_material :: proc(
 
 	assets.materials[name] = material
 
-	logger.info("[ASSETS] Material %s registered", name)
-
 	return MaterialHandle(name)
 }
 
@@ -60,8 +58,6 @@ assets_register_mesh :: proc(assets: ^Assets, name: string, mesh: renderer.Mesh)
 	c_name := strings.clone(name)
 
 	assets.meshes[c_name] = mesh
-
-	logger.info("[ASSETS] Mesh %s registered", c_name)
 
 	return MeshHandle(c_name)
 }
@@ -91,8 +87,6 @@ assets_register_voxel_prefab :: proc(
 	}
 
 	assets.voxel_prefabs[name] = prefab
-
-	logger.info("[ASSETS] Voxel Prefab %s registered", name)
 
 	return VoxelPrefabHandle(name)
 }
