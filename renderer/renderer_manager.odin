@@ -14,7 +14,8 @@ RendererManager :: struct {
     samplers: [dynamic]wgpu.Sampler,
     bind_groups: [dynamic]wgpu.BindGroup,
     bind_group_layouts: [dynamic]wgpu.BindGroupLayout,
-    pipelines: [dynamic]wgpu.RenderPipeline,   
+    pipelines: [dynamic]wgpu.RenderPipeline,
+    pipeline_layouts: [dynamic]wgpu.PipelineLayout,
 }
 
 renderer_manager_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> RendererManager {
@@ -28,6 +29,7 @@ renderer_manager_init :: proc(device: wgpu.Device, queue: wgpu.Queue) -> Rendere
         bind_groups = make([dynamic]wgpu.BindGroup),
         bind_group_layouts = make([dynamic]wgpu.BindGroupLayout),
         pipelines = make([dynamic]wgpu.RenderPipeline),
+        pipeline_layouts = make([dynamic]wgpu.PipelineLayout),
     }
 }
 
@@ -38,6 +40,7 @@ renderer_manager_destroy :: proc(rm: ^RendererManager) {
     for s in rm.samplers { wgpu.SamplerRelease(s) }
     for b in rm.bind_group_layouts { wgpu.BindGroupLayoutRelease(b) }
     for b in rm.bind_groups { wgpu.BindGroupRelease(b) }
+    for p in rm.pipeline_layouts { wgpu.PipelineLayoutRelease(p) }
     for p in rm.pipelines { wgpu.RenderPipelineRelease(p) }
 
     delete(rm.buffers)
@@ -46,6 +49,7 @@ renderer_manager_destroy :: proc(rm: ^RendererManager) {
     delete(rm.samplers)
     delete(rm.bind_group_layouts)
     delete(rm.bind_groups)
+    delete(rm.pipeline_layouts)
     delete(rm.pipelines)
 }
 
@@ -66,9 +70,8 @@ write_buffer :: proc(rm: ^RendererManager, handle: Handle, buffer_offset: u64, d
     wgpu.QueueWriteBuffer(rm.queue, rm.buffers[handle], buffer_offset, data, size)
 }
 
-write_buffer_2 :: proc(rm: ^RendererManager, handle: Handle, data: $T) {
-    cloned_data := data
-    wgpu.QueueWriteBuffer(rm.queue, rm.buffers[handle], 0, &cloned_data, size_of(T))
+write_buffer_2 :: proc(rm: ^RendererManager, handle: Handle, data: ^$T) {
+    wgpu.QueueWriteBuffer(rm.queue, rm.buffers[handle], 0, data, size_of(T))
 }
 
 get_buffer :: proc(rm: ^RendererManager, handle: Handle) -> wgpu.Buffer {
@@ -98,4 +101,33 @@ create_bind_group :: proc(rm: ^RendererManager, label: string, layout_handle: Ha
 
     append(&rm.bind_groups, bind_group)
     return Handle(len(rm.bind_groups) - 1)
+}
+
+get_bind_group_layout :: proc(rm: ^RendererManager, handle: Handle) -> wgpu.BindGroupLayout {
+    return rm.bind_group_layouts[handle]
+}
+
+get_bind_group :: proc(rm: ^RendererManager, handle: Handle) -> wgpu.BindGroup {
+    return rm.bind_groups[handle]
+}
+
+create_pipeline_layout :: proc(rm: ^RendererManager, label: string, bind_group_layout_handles: []Handle) -> Handle {
+    bind_layouts := make([]wgpu.BindGroupLayout, len(bind_group_layout_handles), context.temp_allocator)
+	for handle, i in bind_group_layout_handles {
+		bind_layouts[i] = rm.bind_group_layouts[handle]
+	}
+
+    layout := wgpu.DeviceCreatePipelineLayout(rm.device, &{
+        label = label,
+        bindGroupLayoutCount = len(bind_layouts),
+        bindGroupLayouts = raw_data(bind_layouts[:]),
+        immediateSize = 0,
+    })
+
+    append(&rm.pipeline_layouts, layout)
+    return Handle(len(rm.pipeline_layouts) - 1)
+}
+
+get_pipeline_layout :: proc(rm: ^RendererManager, handle: Handle) -> wgpu.PipelineLayout {
+    return rm.pipeline_layouts[handle]
 }

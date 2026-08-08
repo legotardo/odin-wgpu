@@ -65,7 +65,7 @@ game_awake :: proc(state: ^GameState) {
 		renderer.material_create(
 			state.renderer,
 			string(default_shader_src),
-			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+			{state.renderer.h_global_bind_group_layout}
 		),
 	)
 	chunk_material := assets_register_material(
@@ -74,7 +74,7 @@ game_awake :: proc(state: ^GameState) {
 		renderer.material_create(
 			state.renderer,
 			string(chunk_shader_src),
-			[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+			{state.renderer.h_global_bind_group_layout}
 		),
 	)
 
@@ -161,7 +161,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 			renderer.material_create(
 				state.renderer,
 				string(chunk_shader_src),
-				[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+				{state.renderer.h_global_bind_group_layout}
 			),
 		)
 		assets_register_material(
@@ -170,7 +170,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 			renderer.material_create(
 				state.renderer,
 				string(default_shader_src),
-				[]wgpu.BindGroupLayout{state.renderer.global_layout_group},
+				{state.renderer.h_global_bind_group_layout}
 			),
 		)
 	}

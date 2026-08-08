@@ -14,45 +14,16 @@ CameraUniform :: struct {
 	_pad: f32,
 }
 
-// renderer_create_camera_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-// 	buffer := wgpu.DeviceCreateBuffer(
-// 		device,
-// 		&{
-// 			label = "camera buffer",
-// 			usage = {.Uniform, .CopyDst},
-// 			size = size_of(CameraUniform),
-// 		},
-// 	)
-
-// 	return buffer
-// }
-
-// renderer_update_camera_buffer :: proc(
-// 	r: ^Renderer,
-// 	uniform: CameraUniform,
-// ) {
-// 	mat := uniform
-// 	wgpu.QueueWriteBuffer(r.queue, r.camera_buffer, 0, &mat, size_of(CameraUniform))
-// }
-
-// // // PALETTE
-renderer_create_palette_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "palette buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(linalg.Vector4f32) * 256,
-		},
-	)
-
-	return buffer
+RenderConfigUniform :: struct {
+	render_distance: i32,
+	block_size: f32,
+	_padding: [2]i32,
 }
 
-renderer_update_palette_buffer :: proc(r: ^Renderer, colors: ^[256]linalg.Vector4f32) {
-	wgpu.QueueWriteBuffer(r.queue, r.palette_buffer, 0, colors, size_of(linalg.Vector4f32) * 256)
+SunUniform :: struct {
+	view_proj: linalg.Matrix4f32,
+	direction: linalg.Vector4f32,
 }
-// // // PALETTE
 
 // // // DEPTH BUFFER
 renderer_create_depth_texture_view :: proc(device: wgpu.Device, s_config: ^wgpu.SurfaceConfiguration) -> wgpu.TextureView {
@@ -92,74 +63,6 @@ renderer_create_depth_texture_view :: proc(device: wgpu.Device, s_config: ^wgpu.
 }
 // // // DEPTH BUFFER
 
-// // // LIGHT
-// renderer_create_light_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-// 	buffer := wgpu.DeviceCreateBuffer(
-// 		device,
-// 		&{
-// 			label = "light buffer",
-// 			usage = {.Storage, .CopyDst},
-// 			size = size_of(u32) * 4 + size_of(LightData) * 10246,
-// 		},
-// 	)
-
-// 	return buffer
-// }
-
-// renderer_update_light_buffer :: proc(
-// 	r: ^Renderer,
-// 	lights: []LightData,
-// ) {
-// 	LightBufferHeader :: struct {
-// 		light_count: u32,
-// 		_pad1:       u32,
-// 		_pad2:       u32,
-// 		_pad3:       u32,
-// 	}
-
-// 	header := LightBufferHeader{
-// 		light_count = u32(len(lights)),
-// 	}
-
-// 	wgpu.QueueWriteBuffer(
-// 		r.queue,
-// 		r.light_buffer,
-// 		0,
-// 		&header,
-// 		size_of(LightBufferHeader)
-// 	)
-
-// 	wgpu.QueueWriteBuffer(
-// 		r.queue,
-// 		r.light_buffer,
-// 		u64(size_of(LightBufferHeader)),
-// 		raw_data(lights[:]),
-// 		size_of(LightData) * len(lights)
-// 	)
-// }
-// // // LIGHT
-
-// // // INSTANCE
-renderer_create_instance_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "instance buffer",
-			usage = {.Storage, .CopyDst},
-			size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
-		},
-	)
-
-	return buffer
-}
-
-renderer_update_instance_buffer :: proc(
-	r: ^Renderer,
-	transforms: []linalg.Matrix4f32,
-) {
-		wgpu.QueueWriteBuffer(r.queue, r.instance_buffer, 0, raw_data(transforms), size_of(linalg.Matrix4f32) * len(transforms))
-}
-
 renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f32 {
 	count := 0
     for item in items {
@@ -180,35 +83,6 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
 
 	return transforms
 }
-
-// // // Render Config
-RenderConfigUniform :: struct {
-	render_distance: i32,
-	block_size: f32,
-	_padding: [2]i32,
-}
-
-renderer_create_render_config_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "render config buffer",
-			usage = {.Uniform, .CopyDst},
-			size = size_of(RenderConfigUniform),
-		},
-	)
-
-	return buffer
-}
-
-renderer_update_render_config_buffer :: proc(
-	r: ^Renderer,
-	uniform: RenderConfigUniform,
-) {
-	mat := uniform
-	wgpu.QueueWriteBuffer(r.queue, r.render_config_buffer, 0, &mat, size_of(RenderConfigUniform))
-}
-// // // Render Config
 
 // // // G-Buffer
 GBuffer :: struct {
@@ -523,65 +397,3 @@ renderer_create_shadow_pipeline :: proc(
 	return pipeline, pipeline_layout
 }
 // // // Shadown Map
-
-// // // Sun
-SunUniform :: struct {
-	view_proj: linalg.Matrix4f32,
-	direction: linalg.Vector4f32,
-}
-
-renderer_create_sun_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(device, &{
-		label = "sum buffer",
-		usage = {.Uniform, .CopyDst},
-		size = size_of(SunUniform),
-	})
-
-	return buffer
-}
-
-renderer_update_sun_buffer :: proc(
-	r: ^Renderer,
-	uniform: SunUniform,
-) {
-	mat := uniform
-	wgpu.QueueWriteBuffer(r.queue, r.sun_buffer, 0, &mat, size_of(SunUniform))
-}
-
-renderer_create_sun_bind_group :: proc(device: wgpu.Device, sun_buffer: wgpu.Buffer) -> (wgpu.BindGroup, wgpu.BindGroupLayout) {
-	layout_entries := [1]wgpu.BindGroupLayoutEntry{
-		{
-			binding = 0,
-			visibility = {.Vertex, .Fragment},
-			buffer = {
-				type = .Uniform,
-				minBindingSize = size_of(SunUniform),
-			},
-		}
-	}
-
-	layout := wgpu.DeviceCreateBindGroupLayout(device, &{
-		label = "sun bind group layout",
-		entries = raw_data(layout_entries[:]),
-		entryCount = len(layout_entries),
-	})
-
-	entries := [1]wgpu.BindGroupEntry{
-		{
-			binding = 0,
-			buffer = sun_buffer,
-			offset = 0,
-			size = size_of(SunUniform),
-		}
-	}
-
-	bind_group := wgpu.DeviceCreateBindGroup(device, &{
-		label = "sun bind group",
-		layout = layout,
-		entries = raw_data(entries[:]),
-		entryCount = len(entries),
-	})
-
-	return bind_group, layout
-}
-// // // Sun

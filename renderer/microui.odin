@@ -16,72 +16,7 @@ microui_state: struct {
 	vert_buf:  [BUFFER_SIZE * 8]f32,
 	color_buf: [BUFFER_SIZE * 16]u8,
 	index_buf: [BUFFER_SIZE * 6]u32,
-	buf_idx:      u32,
-}
-
-microui_create_constant_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "microui constant buffer",
-			usage = {.Uniform, .CopyDst},
-			size = size_of(linalg.Matrix4f32),
-		},
-	)
-
-	return buffer
-}
-
-microui_create_vertex_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "microui vertex buffer",
-			usage = {.Vertex, .CopyDst},
-			size = size_of(microui_state.vert_buf),
-		},
-	)
-
-	return buffer
-}
-
-microui_create_tex_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "microui texture buffer",
-			usage = {.Vertex, .CopyDst},
-			size = size_of(microui_state.tex_buf),
-		},
-	)
-
-	return buffer
-}
-
-microui_create_color_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "microui color buffer",
-			usage = {.Vertex, .CopyDst},
-			size = size_of(microui_state.color_buf),
-		},
-	)
-
-	return buffer
-}
-
-microui_create_index_buffer :: proc(device: wgpu.Device) -> wgpu.Buffer {
-	buffer := wgpu.DeviceCreateBuffer(
-		device,
-		&{
-			label = "microui index buffer",
-			usage = {.Index, .CopyDst},
-			size = size_of(microui_state.index_buf),
-		},
-	)
-
-	return buffer
+	buf_idx:   u32,
 }
 
 microui_create_atlas_texture_view :: proc(device: wgpu.Device) -> (wgpu.TextureView, wgpu.Texture, wgpu.Sampler) {
