@@ -86,7 +86,7 @@ wgpu_init :: proc(window: ^platform.Window) {
 		state.renderer = renderer.renderer_init(device, queue, &state.config, &state.window, mu_ctx)
 		state.game_state = game.game_init(&state.renderer, &state.window, mu_ctx)
 		game.game_awake(&state.game_state)
-		renderer.renderer_update_palette_buffer(&state.renderer, &state.game_state.palette.colors)
+		renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_palette_buffer, &state.game_state.palette.colors)
 
 		platform.prepare_context(&state.window)
 	}
@@ -125,14 +125,14 @@ update :: proc(dt: f32) {
 
 	cam_matrix := game.game_get_camera_matrix(&state.game_state)
 	cam_pos := game.game_get_camera_eye(&state.game_state)
-	renderer.renderer_update_camera_buffer(&state.renderer, { 
+	renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_camera_buffer, &renderer.CameraUniform{ 
 		view_proj = cam_matrix,
 		view_proj_inv = linalg.matrix4_inverse(cam_matrix),
 		position = cam_pos
 	})
 	sun_direction := linalg.Vector3f32{-0.5, -0.9, -0.3}
 	sun_uniform := game.game_calculate_sun(cam_pos, sun_direction)
-	renderer.renderer_update_sun_buffer(&state.renderer, sun_uniform)
+	renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_sun_buffer, &sun_uniform)
 
 	game_items_to_draw := game.game_get_render_items(&state.game_state)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
