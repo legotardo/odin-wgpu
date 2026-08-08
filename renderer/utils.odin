@@ -2,7 +2,6 @@ package renderer
 
 import "core:math/linalg"
 import "vendor:wgpu"
-import "../constants"
 
 lighting_shader_src := #load("../assets/shaders/lighting.wgsl")
 shadow_shader_src := #load("../assets/shaders/shadow.wgsl")
@@ -24,44 +23,6 @@ SunUniform :: struct {
 	view_proj: linalg.Matrix4f32,
 	direction: linalg.Vector4f32,
 }
-
-// // // DEPTH BUFFER
-renderer_create_depth_texture_view :: proc(device: wgpu.Device, s_config: ^wgpu.SurfaceConfiguration) -> wgpu.TextureView {
-	size := wgpu.Extent3D{
-		width = s_config.width,
-		height = s_config.height,
-		depthOrArrayLayers = 1,
-	}
-
-	descriptor := wgpu.TextureDescriptor {
-		label = "Depth Buffer Texture Descriptor",
-		size = size,
-		mipLevelCount = 1,
-		sampleCount = 1,
-		dimension = ._2D,
-		format = .Depth24Plus,
-		usage = {.RenderAttachment, .TextureBinding},
-		viewFormats = {}
-	}
-
-	texture := wgpu.DeviceCreateTexture(device, &descriptor)
-	// samples := wgpu.DeviceCreateSampler(r.device, &{
-	// 	addressModeU = .ClampToEdge,
-	// 	addressModeV = .ClampToEdge,
-	// 	addressModeW = .ClampToEdge,
-	// 	magFilter = .Linear,
-	// 	minFilter = .Linear,
-	// 	mipmapFilter = .Nearest,
-	// 	compare = .LessEqual,
-	// 	lodMinClamp = 0,
-	// 	lodMaxClamp = 100,
-	// })
-
-	depth_view := wgpu.TextureCreateView(texture, nil)
-
-	return depth_view
-}
-// // // DEPTH BUFFER
 
 renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f32 {
 	count := 0
@@ -149,251 +110,52 @@ renderer_destroy_gbuffer :: proc(g: ^GBuffer) {
 }
 // // // G-Buffer
 
-// // // Lighting
-renderer_create_lighting_bind_group :: proc(
-	device: wgpu.Device,
-	gbuffer: ^GBuffer,
-	depth_texture_view: wgpu.TextureView,
-	camera_buffer: wgpu.Buffer,
-	render_config_buffer: wgpu.Buffer,
-	sun_buffer: wgpu.Buffer,
-	shadow_texture_view: wgpu.TextureView,
-	shadow_sampler: wgpu.Sampler,
-) -> (wgpu.BindGroup, wgpu.BindGroupLayout) {
-	layout_entries := [9]wgpu.BindGroupLayoutEntry {
-		{
-			binding = 0,
-			visibility = {.Fragment},
-			texture = {
-				sampleType = .UnfilterableFloat,
-				viewDimension = ._2D,
-				multisampled = false,
-			},
+@(private)
+recreate_depth_buffer :: proc(r: ^Renderer, width, height: u32) {
+	texture_desc := wgpu.TextureDescriptor{
+		label = "depth buffer texture",
+		size = {
+			width = width,
+			height = height,
+			depthOrArrayLayers = 1,
 		},
-		{
-			binding = 1,
-			visibility = {.Fragment},
-			texture = {
-				sampleType = .UnfilterableFloat,
-				viewDimension = ._2D,
-				multisampled = false,
-			},
-		},
-		{
-			binding = 2,
-			visibility = {.Fragment},
-			texture = {
-				sampleType = .Depth,
-				viewDimension = ._2D,
-				multisampled = false,
-			},
-		},
-		{
-			binding = 3,
-			visibility = {.Fragment},
-			sampler = {
-				type = .NonFiltering,
-			},
-		},
-		{
-			binding = 4,
-			visibility = {.Fragment},
-			buffer = {
-				type = .Uniform,
-				minBindingSize = size_of(CameraUniform)
-			},
-		},
-		{
-			binding = 5,
-			visibility = {.Fragment},
-			buffer = { type = .Uniform, minBindingSize = size_of(RenderConfigUniform) },
-		},
-		{
-			binding = 6,
-			visibility = {.Fragment},
-			buffer = { type = .Uniform, minBindingSize = size_of(SunUniform) },
-		},
-		{
-			binding = 7,
-			visibility = {.Fragment},
-			texture = { sampleType = .Depth, viewDimension = ._2D, multisampled = false },
-		},
-		{
-			binding = 8,
-			visibility = {.Fragment},
-			sampler = { type = .Comparison },
-		},
-	}
-
-	layout := wgpu.DeviceCreateBindGroupLayout(
-		device,
-		&{
-			entries = raw_data(layout_entries[:]),
-			entryCount = len(layout_entries),
-			label = "global bind group layout",
-		},
-	)
-
-	entries := [9]wgpu.BindGroupEntry{
-		{ binding = 0, textureView = gbuffer.albedo_view },
-		{ binding = 1, textureView = gbuffer.normal_view },
-		{ binding = 2, textureView = depth_texture_view },
-		{ binding = 3, sampler = gbuffer.sampler },
-		{ binding = 4, buffer = camera_buffer, offset = 0, size = size_of(CameraUniform) },
-		{ binding = 5, buffer = render_config_buffer, offset = 0, size = size_of(RenderConfigUniform) },
-		{ binding = 6, buffer = sun_buffer, offset = 0, size = size_of(SunUniform) },
-		{ binding = 7, textureView = shadow_texture_view },
-		{ binding = 8, sampler = shadow_sampler },
-	}
-
-	bind_group := wgpu.DeviceCreateBindGroup(device, &{
-		label = "Lighting Bind Group",
-		layout = layout,
-		entryCount = len(entries),
-		entries = raw_data(entries[:]),
-	})
-
-	return bind_group, layout
-}
-
-renderer_create_lighting_pipeline :: proc(
-	device: wgpu.Device,
-	bind_group_layouts: ^wgpu.BindGroupLayout,
-	s_config: ^wgpu.SurfaceConfiguration,
-) -> (wgpu.RenderPipeline, wgpu.PipelineLayout) {
-	shader_module := wgpu.DeviceCreateShaderModule(
-		device,
-		&{nextInChain = &wgpu.ShaderSourceWGSL{sType = .ShaderSourceWGSL, code = string(lighting_shader_src) }},
-	)
-	defer wgpu.ShaderModuleRelease(shader_module)
-
-	pipeline_layout := wgpu.DeviceCreatePipelineLayout(
-		device,
-		&{
-			bindGroupLayouts = bind_group_layouts,
-			bindGroupLayoutCount = 1,
-		},
-	)
-
-	pipeline := wgpu.DeviceCreateRenderPipeline(
-		device,
-		&{
-			label = "lighting render pipeline",
-			layout = pipeline_layout,
-			vertex = {
-				module = shader_module,
-				entryPoint = "vs_main",
-				bufferCount = 0,
-				buffers = nil,
-			},
-			fragment = &{
-				module = shader_module,
-				entryPoint = "fs_main",
-				targetCount = 1,
-				targets = &wgpu.ColorTargetState {
-					format = s_config.format,
-					writeMask = wgpu.ColorWriteMaskFlags_All
-				},
-			},
-			primitive = {
-				topology = .TriangleList,
-				frontFace = .CCW,
-				cullMode = .None,
-			},
-			multisample = {count = 1, mask = 0xFFFFFFFF},
-		},
-	)
-
-	return pipeline, pipeline_layout
-}
-// // // Lighting
-
-// // // Shadown Map
-renderer_create_shadow_map :: proc(device: wgpu.Device) -> (wgpu.Texture, wgpu.TextureView, wgpu.Sampler) {
-	size := wgpu.Extent3D{
-		width = 4096,
-		height = 4096,
-		depthOrArrayLayers = 1,
-	}
-
-	descriptor := wgpu.TextureDescriptor{
-		label = "shadow map texture",
-		size = size,
 		mipLevelCount = 1,
 		sampleCount = 1,
 		dimension = ._2D,
-		format = .Depth32Float,
+		format = .Depth24Plus,
 		usage = {.RenderAttachment, .TextureBinding},
-		viewFormats = {},
-		viewFormatCount = 0,
+		viewFormats = {}
+	}
+	if r.h_depth_texture == 0 {
+		r.h_depth_texture = create_texture(&r.renderer_manager, &texture_desc)
+	} else {
+		update_texture(&r.renderer_manager, r.h_depth_texture, &texture_desc)
 	}
 
-	texture := wgpu.DeviceCreateTexture(device, &descriptor)
-	view := wgpu.TextureCreateView(texture, nil)
-
-	sampler := wgpu.DeviceCreateSampler(device, &{
-		label = "shadow sampler",
-		addressModeU = .ClampToEdge,
-		addressModeV = .ClampToEdge,
-		addressModeW = .ClampToEdge,
-		magFilter = .Linear,
-		minFilter = .Linear,
-		mipmapFilter = .Nearest,
-		compare = .Less,
-		maxAnisotropy = 1,
-	})
-
-	return texture, view, sampler
+	if r.h_depth_texture_view == 0 {
+		r.h_depth_texture_view = create_texture_view(&r.renderer_manager, r.h_depth_texture, nil)
+	} else {
+		update_texture_view(&r.renderer_manager, r.h_depth_texture_view, r.h_depth_texture, nil)
+	}
 }
 
-renderer_create_shadow_pipeline :: proc(
-	device: wgpu.Device,
-	global_layout: wgpu.BindGroupLayout,
-	sun_layout: wgpu.BindGroupLayout,
-) -> (wgpu.RenderPipeline, wgpu.PipelineLayout) {
-	shader_module := wgpu.DeviceCreateShaderModule(
-		device,
-		&{nextInChain = &wgpu.ShaderSourceWGSL{sType = .ShaderSourceWGSL, code = string(shadow_shader_src) }},
-	)
-	defer wgpu.ShaderModuleRelease(shader_module)
+@(private)
+recreate_lighting_bind_group :: proc(r: ^Renderer) {
+	entries := []wgpu.BindGroupEntry{
+		{ binding = 0, textureView = r.gbuffer.albedo_view },
+		{ binding = 1, textureView = r.gbuffer.normal_view },
+		{ binding = 2, textureView = get_texture_view(&r.renderer_manager, r.h_depth_texture_view) },
+		{ binding = 3, sampler = r.gbuffer.sampler },
+		{ binding = 4, buffer = get_buffer(&r.renderer_manager, r.h_camera_buffer), offset = 0, size = size_of(CameraUniform) },
+		{ binding = 5, buffer = get_buffer(&r.renderer_manager, r.h_render_config_buffer), offset = 0, size = size_of(RenderConfigUniform) },
+		{ binding = 6, buffer = get_buffer(&r.renderer_manager, r.h_sun_buffer), offset = 0, size = size_of(SunUniform) },
+		{ binding = 7, textureView = get_texture_view(&r.renderer_manager, r.h_shadow_texture_view) },
+		{ binding = 8, sampler = get_sampler(&r.renderer_manager, r.h_shadow_sampler) },
+	}
 
-	layouts := [2]wgpu.BindGroupLayout{global_layout, sun_layout}
-
-	pipeline_layout := wgpu.DeviceCreatePipelineLayout(device, &{
-		bindGroupLayouts = raw_data(layouts[:]),
-		bindGroupLayoutCount = len(layouts),
-	})
-
-	vertex_layout := vertex_get_buffer_layout()
-
-	pipeline := wgpu.DeviceCreateRenderPipeline(
-		device,
-		&{
-			label = "shadow render pipeline",
-			layout = pipeline_layout,
-			vertex = {
-				module = shader_module,
-				entryPoint = "vs_main",
-				bufferCount = 1,
-				buffers = &vertex_layout,
-			},
-			primitive = {
-				topology = .TriangleList,
-				frontFace = .CCW,
-				cullMode = .Back,
-			},
-			multisample = {count = 1, mask = 0xFFFFFFFF},
-			depthStencil = &{
-				format = .Depth32Float,
-				depthWriteEnabled = .True,
-				depthCompare = .Less,
-				depthBias = 2,
-				depthBiasSlopeScale = 2.0,
-				depthBiasClamp = 0.0,
-			},
-		},
-	)
-	
-	return pipeline, pipeline_layout
+	if r.h_lighting_bind_group == 0 {
+		r.h_lighting_bind_group = create_bind_group(&r.renderer_manager, "lighting bind group", r.h_lighting_bind_group_layout, entries)
+	} else {
+		update_bind_group(&r.renderer_manager, r.h_lighting_bind_group, "lighting bind group", r.h_lighting_bind_group_layout, entries)
+	}
 }
-// // // Shadown Map

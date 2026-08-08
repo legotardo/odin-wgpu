@@ -13,6 +13,8 @@ Renderer :: struct {
 	window: ^platform.Window,
 	renderer_manager: RendererManager,
 	use_wireframe: bool,
+	microui_ctx: ^mu.Context,
+	total_vertex_count: u64, // Used for debug
 
 	h_camera_buffer: Handle,
 	h_palette_buffer: Handle,
@@ -28,39 +30,24 @@ Renderer :: struct {
 	h_sun_buffer: Handle,
 	h_sun_bind_group: Handle,
 	h_sun_bind_group_layout: Handle,
-
-	microui_bind_group:   wgpu.BindGroup,
-	lighting_bind_group:     wgpu.BindGroup,
-	// sun_bind_group:     wgpu.BindGroup,
-
-	microui_layout_group: wgpu.BindGroupLayout,
-	lighting_layout_group:   wgpu.BindGroupLayout,
-	// sun_layout_group:   wgpu.BindGroupLayout,
-
-
-	depth_texture_view: wgpu.TextureView,
-	microui_atlas_texture_view: wgpu.TextureView,
-
-	microui_sampler: wgpu.Sampler,
-
-	microui_atlas_texture: wgpu.Texture,
-
-	microui_pipeline: wgpu.RenderPipeline,
-	microui_pipeline_layout: wgpu.PipelineLayout,
-
-	lighting_pipeline:       wgpu.RenderPipeline,
-	lighting_pipeline_layout: wgpu.PipelineLayout,
-
-	shadow_pipeline:       wgpu.RenderPipeline,
-	shadow_pipeline_layout: wgpu.PipelineLayout,
-
-	shadow_texture:      wgpu.Texture,
-	shadow_texture_view: wgpu.TextureView,
-	shadow_sampler:      wgpu.Sampler,
-
-	microui_ctx: ^mu.Context,
-
-	total_vertex_count: u64,
+	h_lighting_bind_group: Handle,
+	h_lighting_bind_group_layout: Handle,
+	h_depth_texture: Handle,
+	h_depth_texture_view: Handle,
+	h_microui_atlas_texture: Handle,
+	h_microui_atlas_texture_view: Handle,
+	h_microui_sampler: Handle,
+	h_microui_bind_group_layout: Handle,
+	h_microui_bind_group: Handle,
+	h_shadow_texture: Handle,
+	h_shadow_texture_view: Handle,
+	h_shadow_sampler: Handle,
+	h_microui_pipeline: Handle,
+	h_microui_pipeline_layout: Handle,
+	h_shadow_pipeline: Handle,
+	h_shadow_pipeline_layout: Handle,
+	h_lighting_pipeline: Handle,
+	h_lighting_pipeline_layout: Handle,
 
 	gbuffer: GBuffer,
 }
@@ -78,68 +65,125 @@ renderer_init :: proc(
 	s_config: ^wgpu.SurfaceConfiguration,
 	window: ^platform.Window,
 	microui_ctx: ^mu.Context
-) -> Renderer {
-	renderer_manager := renderer_manager_init(device, queue)
+) -> (r: Renderer) {
+	r.device = device
+	r.queue = queue
+	r.window = window
+	r.renderer_manager = renderer_manager_init(device, queue)
 
-	h_camera_buffer := create_buffer(&renderer_manager, &{
+	r.h_camera_buffer = create_buffer(&r.renderer_manager, &{
 		label = "camera buffer",
 		usage = {.Uniform, .CopyDst},
 		size = size_of(CameraUniform),
 	})
-	h_palette_buffer := create_buffer(&renderer_manager, &{
+	r.h_palette_buffer = create_buffer(&r.renderer_manager, &{
 		label = "palette buffer",
 		usage = {.Storage, .CopyDst},
 		size = size_of(linalg.Vector4f32) * 256,
 	})
-	h_render_config_buffer := create_buffer(&renderer_manager, &{
+	r.h_render_config_buffer = create_buffer(&r.renderer_manager, &{
 		label = "render config buffer",
 		usage = {.Uniform, .CopyDst},
 		size = size_of(RenderConfigUniform),
 	})
-	h_instance_buffer := create_buffer(&renderer_manager, &{
+	r.h_instance_buffer = create_buffer(&r.renderer_manager, &{
 		label = "instance buffer",
 		usage = {.Storage, .CopyDst},
 		size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT,
 	})
-	h_microui_constant_buffer := create_buffer(&renderer_manager, &{
+	r.h_microui_constant_buffer = create_buffer(&r.renderer_manager, &{
 		label = "microui constant buffer",
 		usage = {.Uniform, .CopyDst},
 		size = size_of(linalg.Matrix4f32),
 	})
-	h_microui_vertex_buffer := create_buffer(&renderer_manager, &{
+	r.h_microui_vertex_buffer = create_buffer(&r.renderer_manager, &{
 		label = "microui vertex buffer",
 		usage = {.Vertex, .CopyDst},
 		size = size_of(microui_state.vert_buf),
 	})
-	h_microui_texture_buffer := create_buffer(&renderer_manager, &{
+	r.h_microui_texture_buffer = create_buffer(&r.renderer_manager, &{
 		label = "microui texture buffer",
 		usage = {.Vertex, .CopyDst},
 		size = size_of(microui_state.tex_buf),
 	})
-	h_microui_color_buffer := create_buffer(&renderer_manager, &{
+	r.h_microui_color_buffer = create_buffer(&r.renderer_manager, &{
 		label = "microui color buffer",
 		usage = {.Vertex, .CopyDst},
 		size = size_of(microui_state.color_buf),
 	})
-	h_microui_index_buffer := create_buffer(&renderer_manager, &{
+	r.h_microui_index_buffer = create_buffer(&r.renderer_manager, &{
 		label = "microui index buffer",
 		usage = {.Index, .CopyDst},
 		size = size_of(microui_state.index_buf),
 	})
-	h_sun_buffer := create_buffer(&renderer_manager, &{
+	r.h_sun_buffer = create_buffer(&r.renderer_manager, &{
 		label = "sun buffer",
 		usage = {.Uniform, .CopyDst},
 		size = size_of(SunUniform),
 	})
 
-	gbuffer := renderer_create_gbuffer(device, s_config)
-	depth_texture_view := renderer_create_depth_texture_view(device, s_config)
+	r.h_microui_atlas_texture = create_texture(&r.renderer_manager, &{
+		label = "microui atlas texture",
+		size = {
+			width = mu.DEFAULT_ATLAS_WIDTH,
+			height = mu.DEFAULT_ATLAS_HEIGHT,
+			depthOrArrayLayers = 1,
+		},
+		mipLevelCount = 1,
+		sampleCount = 1,
+		dimension = ._2D,
+		format = .R8Unorm,
+		usage = {.TextureBinding, .CopyDst},
+		viewFormats = {}
+	})
+	r.h_microui_atlas_texture_view = create_texture_view(&r.renderer_manager, r.h_microui_atlas_texture, nil)
+	r.h_microui_sampler = create_sampler(&r.renderer_manager, &{
+		label = "microui sampler",
+		addressModeU = .ClampToEdge,
+		addressModeV = .ClampToEdge,
+		addressModeW = .ClampToEdge,
+		magFilter = .Nearest,
+		minFilter = .Nearest,
+		mipmapFilter = .Nearest,
+		compare = .Undefined,
+		lodMinClamp = 0,
+		lodMaxClamp = 32,
+        maxAnisotropy = 1,
+	})
 
-	microui_atlas_texture_view, microui_atlas_texture, microui_sampler := microui_create_atlas_texture_view(device)
+	recreate_depth_buffer(&r, s_config.width, s_config.height)
 
-	shadow_texture, shadow_texture_view, shadow_sampler := renderer_create_shadow_map(device)
+	r.h_shadow_texture = create_texture(&r.renderer_manager, &{
+		label = "shadow map texture",
+		size = {
+			width = 4096,
+			height = 4096,
+			depthOrArrayLayers = 1,
+		},
+		mipLevelCount = 1,
+		sampleCount = 1,
+		dimension = ._2D,
+		format = .Depth32Float,
+		usage = {.RenderAttachment, .TextureBinding},
+		viewFormats = {},
+		viewFormatCount = 0,
+	})
+	r.h_shadow_texture_view = create_texture_view(&r.renderer_manager, r.h_shadow_texture, nil)
+	r.h_shadow_sampler = create_sampler(&r.renderer_manager, &{
+		label = "shadow sampler",
+		addressModeU = .ClampToEdge,
+		addressModeV = .ClampToEdge,
+		addressModeW = .ClampToEdge,
+		magFilter = .Linear,
+		minFilter = .Linear,
+		mipmapFilter = .Nearest,
+		compare = .Less,
+		maxAnisotropy = 1,
+	})
 
-	h_global_bind_group_layout := create_bind_group_layout(&renderer_manager, "global layout group", {
+	r.gbuffer = renderer_create_gbuffer(device, s_config)
+
+	r.h_global_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "global layout group", {
 		{
 			binding = 0,
 			visibility = {.Vertex, .Fragment},
@@ -177,14 +221,14 @@ renderer_init :: proc(
 			},
 		},
 	})
-	h_global_bind_group := create_bind_group(&renderer_manager, "global bind group", h_global_bind_group_layout, {
-		{binding = 0, buffer = get_buffer(&renderer_manager, h_camera_buffer), size = size_of(CameraUniform)},
-		{binding = 1, buffer = get_buffer(&renderer_manager, h_render_config_buffer), size = size_of(RenderConfigUniform)},
-		{binding = 2, buffer = get_buffer(&renderer_manager, h_palette_buffer), size = size_of(linalg.Vector4f32) * 256},
-		{binding = 3, buffer = get_buffer(&renderer_manager, h_instance_buffer), size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},
+	r.h_global_bind_group = create_bind_group(&r.renderer_manager, "global bind group", r.h_global_bind_group_layout, {
+		{binding = 0, buffer = get_buffer(&r.renderer_manager, r.h_camera_buffer), size = size_of(CameraUniform)},
+		{binding = 1, buffer = get_buffer(&r.renderer_manager, r.h_render_config_buffer), size = size_of(RenderConfigUniform)},
+		{binding = 2, buffer = get_buffer(&r.renderer_manager, r.h_palette_buffer), size = size_of(linalg.Vector4f32) * 256},
+		{binding = 3, buffer = get_buffer(&r.renderer_manager, r.h_instance_buffer), size = size_of(linalg.Matrix4f32) * constants.MAX_INSTANCES_COUNT},
 	})
 
-	h_sun_bind_group_layout := create_bind_group_layout(&renderer_manager, "sun layout group", {
+	r.h_sun_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "sun layout group", {
 		{
 			binding = 0,
 			visibility = {.Vertex, .Fragment},
@@ -194,83 +238,242 @@ renderer_init :: proc(
 			},
 		}
 	})
-	h_sun_bind_group := create_bind_group(&renderer_manager, "sun bind group", h_sun_bind_group_layout, {
-		{binding = 0, buffer = get_buffer(&renderer_manager, h_sun_buffer), size = size_of(SunUniform)},
+	r.h_sun_bind_group = create_bind_group(&r.renderer_manager, "sun bind group", r.h_sun_bind_group_layout, {
+		{binding = 0, buffer = get_buffer(&r.renderer_manager, r.h_sun_buffer), size = size_of(SunUniform)},
 	})
 
-	lighting_bind_group, lighting_layout_group := renderer_create_lighting_bind_group(
-		device,
-		&gbuffer,
-		depth_texture_view,
-		get_buffer(&renderer_manager, h_camera_buffer), 
-		get_buffer(&renderer_manager, h_render_config_buffer),
-		get_buffer(&renderer_manager, h_sun_buffer),
-		shadow_texture_view,
-		shadow_sampler,
-	)
-	microui_bind_group, microui_layout_group := microui_create_bind_group(
-		device,
-		microui_sampler,
-		microui_atlas_texture_view,
-		get_buffer(&renderer_manager, h_microui_constant_buffer),
-	)
+	r.h_lighting_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "lighting layout group", {
+		{
+			binding = 0,
+			visibility = {.Fragment},
+			texture = {
+				sampleType = .UnfilterableFloat,
+				viewDimension = ._2D,
+				multisampled = false,
+			},
+		},
+		{
+			binding = 1,
+			visibility = {.Fragment},
+			texture = {
+				sampleType = .UnfilterableFloat,
+				viewDimension = ._2D,
+				multisampled = false,
+			},
+		},
+		{
+			binding = 2,
+			visibility = {.Fragment},
+			texture = {
+				sampleType = .Depth,
+				viewDimension = ._2D,
+				multisampled = false,
+			},
+		},
+		{
+			binding = 3,
+			visibility = {.Fragment},
+			sampler = {
+				type = .NonFiltering,
+			},
+		},
+		{
+			binding = 4,
+			visibility = {.Fragment},
+			buffer = {
+				type = .Uniform,
+				minBindingSize = size_of(CameraUniform)
+			},
+		},
+		{
+			binding = 5,
+			visibility = {.Fragment},
+			buffer = { type = .Uniform, minBindingSize = size_of(RenderConfigUniform) },
+		},
+		{
+			binding = 6,
+			visibility = {.Fragment},
+			buffer = { type = .Uniform, minBindingSize = size_of(SunUniform) },
+		},
+		{
+			binding = 7,
+			visibility = {.Fragment},
+			texture = { sampleType = .Depth, viewDimension = ._2D, multisampled = false },
+		},
+		{
+			binding = 8,
+			visibility = {.Fragment},
+			sampler = { type = .Comparison },
+		},
+	})
+	recreate_lighting_bind_group(&r)
 
-	microui_pipeline, microui_pipeline_layout := microui_create_pipeline(device, &microui_layout_group)
-	shadow_pipeline, shadow_pipeline_layout := renderer_create_shadow_pipeline(
-		device,
-		get_bind_group_layout(&renderer_manager, h_global_bind_group_layout),
-		get_bind_group_layout(&renderer_manager, h_sun_bind_group_layout),
-	)
-	lighting_pipeline, lighting_pipeline_layout := renderer_create_lighting_pipeline(device, &lighting_layout_group, s_config)
+	r.h_microui_bind_group_layout = create_bind_group_layout(&r.renderer_manager, "microui layout group", {
+		{
+			binding = 0,
+			visibility = {.Fragment},
+			sampler = {
+				type = .Filtering,
+			}
+		},
+		{
+			binding = 1,
+			visibility = {.Fragment},
+			texture = {
+				sampleType = .Float,
+				viewDimension = ._2D,
+				multisampled = false,
+			}
+		},
+		{
+			binding = 2,
+			visibility = {.Vertex},
+			buffer = {
+				type = .Uniform,
+				minBindingSize = size_of(linalg.Matrix4f32),
+			},
+		},
+	})
+	r.h_microui_bind_group = create_bind_group(&r.renderer_manager, "microui bind group", r.h_microui_bind_group_layout, {
+		{binding = 0, sampler = get_sampler(&r.renderer_manager, r.h_microui_sampler) },
+		{binding = 1, textureView = get_texture_view(&r.renderer_manager, r.h_microui_atlas_texture_view) },
+		{binding = 2, buffer = get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), size = size_of(linalg.Matrix4f32) },
 
-	microui_update_atlas_texture(queue, microui_atlas_texture)
-	microui_update_constant(queue, get_buffer(&renderer_manager, h_microui_constant_buffer), window)
+	})
 
-	return {
-		device = device,
-		queue = queue,
-		window = window,
-		renderer_manager = renderer_manager,
-		use_wireframe = false,
-
-		h_camera_buffer = h_camera_buffer,
-		h_palette_buffer = h_palette_buffer,
-		h_global_bind_group = h_global_bind_group,
-		h_global_bind_group_layout = h_global_bind_group_layout,
-		h_render_config_buffer = h_render_config_buffer,
-		h_sun_buffer = h_sun_buffer,
-		h_sun_bind_group = h_sun_bind_group,
-		h_sun_bind_group_layout = h_sun_bind_group_layout,
-
-		depth_texture_view = depth_texture_view,
-		h_instance_buffer = h_instance_buffer,
-
-		h_microui_vertex_buffer = h_microui_vertex_buffer,
-		h_microui_texture_buffer = h_microui_texture_buffer,
-		h_microui_color_buffer = h_microui_color_buffer,
-		h_microui_index_buffer = h_microui_index_buffer,
-		h_microui_constant_buffer = h_microui_constant_buffer,
-		microui_atlas_texture_view = microui_atlas_texture_view,
-		microui_sampler = microui_sampler,
-		microui_bind_group = microui_bind_group,
-		microui_layout_group = microui_layout_group,
-		microui_pipeline = microui_pipeline,
-		microui_pipeline_layout = microui_pipeline_layout,
-		microui_atlas_texture = microui_atlas_texture,
-		microui_ctx = microui_ctx,
-
-		gbuffer = gbuffer,
-		lighting_bind_group = lighting_bind_group,
-		lighting_layout_group = lighting_layout_group,
-		lighting_pipeline = lighting_pipeline,
-		lighting_pipeline_layout = lighting_pipeline_layout,
-
-		shadow_sampler = shadow_sampler,
-		shadow_texture = shadow_texture,
-		shadow_texture_view = shadow_texture_view,
-		shadow_pipeline = shadow_pipeline,
-		shadow_pipeline_layout = shadow_pipeline_layout,
+	microui_shader := create_shader_module(&r.renderer_manager, string(microui_shader_src))
+	defer delete_shader_module(microui_shader)
+	r.h_microui_pipeline_layout = create_pipeline_layout(&r.renderer_manager, "microui pipeline layout", {r.h_microui_bind_group_layout})
+	microui_buffer_layout := [3]wgpu.VertexBufferLayout{
+		{
+			stepMode = .Vertex,
+			arrayStride = 8,
+			attributeCount = 1,
+			attributes = &wgpu.VertexAttribute{
+				format = .Float32x2,
+				shaderLocation = 0,
+			},
+		},
+		{
+			stepMode = .Vertex,
+			arrayStride = 8,
+			attributeCount = 1,
+			attributes = &wgpu.VertexAttribute{
+				format = .Float32x2,
+				shaderLocation = 1,
+			},
+		},
+		{
+			stepMode = .Vertex,
+			arrayStride = 4,
+			attributeCount = 1,
+			attributes = &wgpu.VertexAttribute{
+				format = .Uint32,
+				shaderLocation = 2,
+			},
+		}
 	}
+	r.h_microui_pipeline = create_pipeline(&r.renderer_manager, &{
+		label = "microui render pipeline",
+		layout = get_pipeline_layout(&r.renderer_manager, r.h_microui_pipeline_layout),
+		vertex = {
+			module = microui_shader,
+			entryPoint = "vs_main",
+			buffers = raw_data(microui_buffer_layout[:]),
+			bufferCount = len(microui_buffer_layout),
+		},
+		fragment = &{
+			module = microui_shader,
+			entryPoint = "fs_main",
+			targetCount = 1,
+			targets = &wgpu.ColorTargetState {
+				format = .BGRA8Unorm,
+				blend = &{
+					alpha = {
+						srcFactor = .SrcAlpha,
+						dstFactor = .OneMinusSrcAlpha,
+						operation = .Add,
+					},
+					color = {
+						srcFactor = .SrcAlpha,
+						dstFactor = .OneMinusSrcAlpha,
+						operation = .Add,
+					},
+				},
+				writeMask = wgpu.ColorWriteMaskFlags_All
+			},
+		},
+		primitive = {
+			topology = .TriangleList,
+			cullMode = .None,
+		},
+		multisample = {count = 1, mask = 0xFFFFFFFF},
+	})
+
+	shadow_shader := create_shader_module(&r.renderer_manager, string(shadow_shader_src))
+	defer delete_shader_module(shadow_shader)
+	r.h_shadow_pipeline_layout = create_pipeline_layout(&r.renderer_manager, "shadow pipeline layout", {r.h_global_bind_group_layout, r.h_sun_bind_group_layout})
+	vertex_layout := vertex_get_buffer_layout()
+	r.h_shadow_pipeline = create_pipeline(&r.renderer_manager, &{
+		label = "shadow render pipeline",
+		layout = get_pipeline_layout(&r.renderer_manager, r.h_shadow_pipeline_layout),
+		vertex = {
+			module = shadow_shader,
+			entryPoint = "vs_main",
+			bufferCount = 1,
+			buffers = &vertex_layout,
+		},
+		primitive = {
+			topology = .TriangleList,
+			frontFace = .CCW,
+			cullMode = .Back,
+		},
+		multisample = {count = 1, mask = 0xFFFFFFFF},
+		depthStencil = &{
+			format = .Depth32Float,
+			depthWriteEnabled = .True,
+			depthCompare = .Less,
+			depthBias = 2,
+			depthBiasSlopeScale = 2.0,
+			depthBiasClamp = 0.0,
+		},
+	})
+
+	lighting_shader := create_shader_module(&r.renderer_manager, string(lighting_shader_src))
+	defer delete_shader_module(lighting_shader)
+	r.h_lighting_pipeline_layout = create_pipeline_layout(&r.renderer_manager, "lighting pipeline layout", {r.h_lighting_bind_group_layout})
+	r.h_lighting_pipeline = create_pipeline(&r.renderer_manager, &{
+		label = "lighting render pipeline",
+		layout = get_pipeline_layout(&r.renderer_manager, r.h_lighting_pipeline_layout),
+		vertex = {
+			module = lighting_shader,
+			entryPoint = "vs_main",
+			bufferCount = 0,
+			buffers = nil,
+		},
+		fragment = &{
+			module = lighting_shader,
+			entryPoint = "fs_main",
+			targetCount = 1,
+			targets = &wgpu.ColorTargetState {
+				format = s_config.format,
+				writeMask = wgpu.ColorWriteMaskFlags_All
+			},
+		},
+		primitive = {
+			topology = .TriangleList,
+			frontFace = .CCW,
+			cullMode = .None,
+		},
+		multisample = {count = 1, mask = 0xFFFFFFFF},
+	})
+
+	microui_update_atlas_texture(queue, get_texture(&r.renderer_manager, r.h_microui_atlas_texture))
+	microui_update_constant(queue, get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), window)
+
+	r.microui_ctx = microui_ctx
+
+	return r
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
@@ -298,7 +501,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 			label = "shadow render pass",
 			colorAttachmentCount = 0,
 			depthStencilAttachment = &{
-				view = r.shadow_texture_view,
+				view = get_texture_view(&r.renderer_manager, r.h_shadow_texture_view),
 				depthLoadOp = .Clear,
 				depthStoreOp = .Store,
 				depthClearValue = 1.0,
@@ -307,9 +510,9 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 		},
 	)
 
-	wgpu.RenderPassEncoderSetPipeline(shadow_pass, r.shadow_pipeline)
+	wgpu.RenderPassEncoderSetPipeline(shadow_pass, get_pipeline(&r.renderer_manager, r.h_shadow_pipeline))
 	wgpu.RenderPassEncoderSetBindGroup(shadow_pass, 0, get_bind_group(&r.renderer_manager, r.h_global_bind_group))
-	wgpu.RenderPassEncoderSetBindGroup(shadow_pass, 1, get_bind_group(&r.renderer_manager, r.h_sun_bind_group_layout))
+	wgpu.RenderPassEncoderSetBindGroup(shadow_pass, 1, get_bind_group(&r.renderer_manager, r.h_sun_bind_group))
 
 	for item, i in items {
 		wgpu.RenderPassEncoderSetVertexBuffer(
@@ -363,7 +566,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 			colorAttachmentCount = len(attachments),
 			colorAttachments = raw_data(attachments[:]),
 			depthStencilAttachment = &{
-				view = r.depth_texture_view,
+				view = get_texture_view(&r.renderer_manager, r.h_depth_texture_view),
 				depthLoadOp = .Clear,
 				depthStoreOp = .Store,
 				depthClearValue = 1.0,
@@ -394,8 +597,8 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 		},
 	)
 
-	wgpu.RenderPassEncoderSetPipeline(lighting_pass, r.lighting_pipeline)
-	wgpu.RenderPassEncoderSetBindGroup(lighting_pass, 0, r.lighting_bind_group)
+	wgpu.RenderPassEncoderSetPipeline(lighting_pass, get_pipeline(&r.renderer_manager, r.h_lighting_pipeline))
+	wgpu.RenderPassEncoderSetBindGroup(lighting_pass, 0, get_bind_group(&r.renderer_manager, r.h_lighting_bind_group))
 	wgpu.RenderPassEncoderDraw(lighting_pass, 3, 1, 0, 0)
 
 	renderer_draw_microui(r, lighting_pass)
@@ -411,8 +614,6 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 
 @(private="file")
 renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items: []RenderItem) {
-
-
 	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, get_bind_group(&r.renderer_manager, r.h_global_bind_group))
 
 	prev_pipeline: wgpu.RenderPipeline
@@ -448,8 +649,8 @@ renderer_draw_game :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder, items:
 
 @(private="file")
 renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
-	wgpu.RenderPassEncoderSetPipeline(encoder, r.microui_pipeline)
-	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, r.microui_bind_group)
+	wgpu.RenderPassEncoderSetPipeline(encoder, get_pipeline(&r.renderer_manager, r.h_microui_pipeline))
+	wgpu.RenderPassEncoderSetBindGroup(encoder, 0, get_bind_group(&r.renderer_manager, r.h_microui_bind_group))
 	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 0, get_buffer(&r.renderer_manager, r.h_microui_vertex_buffer), 0, size_of(microui_state.vert_buf))
 	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 1, get_buffer(&r.renderer_manager, r.h_microui_texture_buffer), 0, size_of(microui_state.tex_buf))
 	wgpu.RenderPassEncoderSetVertexBuffer(encoder, 2, get_buffer(&r.renderer_manager, r.h_microui_color_buffer), 0, size_of(microui_state.color_buf))
@@ -469,23 +670,11 @@ renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
 }
 
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
-	wgpu.TextureViewRelease(r.depth_texture_view)
 	renderer_destroy_gbuffer(&r.gbuffer)
-	wgpu.BindGroupRelease(r.lighting_bind_group)
 
-	r.depth_texture_view = renderer_create_depth_texture_view(r.device, s_config)
+	recreate_depth_buffer(r, s_config.width, s_config.height)
 	r.gbuffer = renderer_create_gbuffer(r.device, s_config)
-
-	r.lighting_bind_group, _ = renderer_create_lighting_bind_group(
-		r.device,
-		&r.gbuffer,
-		r.depth_texture_view,
-		get_buffer(&r.renderer_manager, r.h_camera_buffer),
-		get_buffer(&r.renderer_manager, r.h_render_config_buffer),
-		get_buffer(&r.renderer_manager, r.h_sun_buffer),
-		r.shadow_texture_view,
-		r.shadow_sampler,
-	)
+	recreate_lighting_bind_group(r)
 
 	microui_update_constant(r.queue, get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), r.window)
 }
@@ -493,33 +682,8 @@ renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 renderer_destroy :: proc(r: ^Renderer) {
 	renderer_manager_destroy(&r.renderer_manager)
 
-	wgpu.TextureViewRelease(r.depth_texture_view)
-	wgpu.TextureViewRelease(r.microui_atlas_texture_view)
-	wgpu.TextureViewRelease(r.shadow_texture_view)
-
-	wgpu.BindGroupRelease(r.microui_bind_group)
-	wgpu.BindGroupRelease(r.lighting_bind_group)
-	wgpu.BindGroupLayoutRelease(r.microui_layout_group)
-	wgpu.BindGroupLayoutRelease(r.lighting_layout_group)
-
-	wgpu.SamplerRelease(r.microui_sampler)
-	wgpu.SamplerRelease(r.shadow_sampler)
-
 	renderer_destroy_gbuffer(&r.gbuffer)
 
-	wgpu.RenderPipelineRelease(r.microui_pipeline)
-	wgpu.PipelineLayoutRelease(r.microui_pipeline_layout)
-
-	wgpu.RenderPipelineRelease(r.lighting_pipeline)
-	wgpu.PipelineLayoutRelease(r.lighting_pipeline_layout)
-
-	wgpu.RenderPipelineRelease(r.shadow_pipeline)
-	wgpu.PipelineLayoutRelease(r.shadow_pipeline_layout)
-
-	wgpu.TextureRelease(r.microui_atlas_texture)
-	wgpu.TextureRelease(r.shadow_texture)
-
 	wgpu.DeviceRelease(r.device)
-
 	wgpu.QueueRelease(r.queue)
 }
