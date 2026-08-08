@@ -74,8 +74,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         shadow_uv.y >= 0.0 && shadow_uv.y <= 1.0 &&
         sun_ndc.z >= 0.0 && sun_ndc.z <= 1.0) {
         
+        shadow_factor = 0.0;
+        let texel_size = 1.0 / 4096.0;
         let bias = 0.0005;
-        shadow_factor = textureSampleCompare(shadow_map, shadow_sampler, shadow_uv, sun_ndc.z - bias);
+        for (var y: i32 = -1; y <= 1; y += 1) {
+            for (var x: i32 = -1; x <= 1; x += 1) {
+                let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
+                shadow_factor += textureSampleCompare(shadow_map, shadow_sampler, shadow_uv + offset, sun_ndc.z - bias);
+            }
+        }
+        
+        shadow_factor /= 9.0;
     }
 
     let ambient_light = 0.4;
