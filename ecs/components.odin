@@ -1,7 +1,7 @@
 package ecs
 
-import "../constants"
 import "core:math/linalg"
+import "../shared"
 
 TransformComponent :: struct {
 	position: linalg.Vector3f32,
@@ -31,57 +31,18 @@ FirstPersonComponent :: struct {
 	sensitivity: f32,
 	speed:       f32,
 }
-
-Block :: distinct constants.Block
-ChunkState :: enum {
-	PendingTerrain,
-	DoingTerrain,
-
-	PendingDecoration,
-	DoingDecoration,
-
-	PendingMissingBlocks,
-	DoingMissingBlocks,
-
-	PendingMesh,
-	DoingMesh,
-	
-	Done,
-	DoingDelete,
-}
-ChunkPos :: struct { x, y, z: i32 }
-ChunkMissingBlock :: struct {
-	x, y, z: i32,
-	block: Block,
-}
-ChunkOffset :: struct {
-	x, y, z: i32,
-	dist_sq: i32,
-}
 ChunkComponent :: struct {
-	palette: [dynamic]Block,
+	palette: [dynamic]shared.Block,
 	packed_blocks: []u64,
 	bits_per_block: u8,
-
 	current_lod:  i32,
-	
-	state: ChunkState,
-
+	state: shared.ChunkState,
 	is_empty:        bool,
 	is_all_solid:    bool,
-
 	mesh_missing_mask: u8,
-
-	coord: ChunkPos,
+	coord: shared.ChunkPos,
+	primary_biome: ^shared.BiomeConfig,
 }
-
-// LightComponent :: struct {
-// 	light_type: renderer.LightType,
-// 	color: linalg.Vector3f32,
-// 	direction: linalg.Vector3f32,
-// 	intensity: f32,
-// 	range:     f32,
-// }
 
 PhysicsComponent :: struct {
 	velocity: linalg.Vector3f32,

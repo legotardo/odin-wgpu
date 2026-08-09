@@ -6,9 +6,10 @@ import "core:math"
 import "../constants"
 import "../ecs"
 import "../renderer"
+import "../shared"
 
 @(private)
-chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.Block {
+chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> shared.Block {
 	if chunk.state == .DoingDelete do return .Air
 
 	if x < 0 ||
@@ -38,7 +39,7 @@ chunk_get_block_local :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32) -> ecs.B
 }
 
 @(private)
-chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: ecs.Block) {
+chunk_set_block :: proc(chunk: ^ecs.ChunkComponent, x, y, z: i32, block: shared.Block) {
 	if x < 0 ||
 	   x >= constants.CHUNK_SIZE ||
 	   y < 0 ||
@@ -118,7 +119,7 @@ get_required_bits :: proc(palette_size: int) -> u8 {
 }
 
 @(private)
-world_get_chunk_block :: proc(world: ^ecs.World, chunk_idx: u32, x, y, z: i32, neighbor_indices: [6]int, neighbor_entities: [6]ecs.Entity) -> ecs.Block {
+world_get_chunk_block :: proc(world: ^ecs.World, chunk_idx: u32, x, y, z: i32, neighbor_indices: [6]int, neighbor_entities: [6]ecs.Entity) -> shared.Block {
 	n_0 := neighbor_indices[0] >= 0 ? &world.chunks[neighbor_indices[0]] : nil
 	n_1 := neighbor_indices[1] >= 0 ? &world.chunks[neighbor_indices[1]] : nil
 	n_2 := neighbor_indices[2] >= 0 ? &world.chunks[neighbor_indices[2]] : nil
@@ -139,7 +140,7 @@ world_get_chunk_block :: proc(world: ^ecs.World, chunk_idx: u32, x, y, z: i32, n
 }
 
 @(private)
-world_get_block_at :: proc(world: ^ecs.World, world_pos: [3]i32) -> ecs.Block {
+world_get_block_at :: proc(world: ^ecs.World, world_pos: [3]i32) -> shared.Block {
 	cx := i32(math.floor(f32(world_pos[0]) / f32(constants.CHUNK_SIZE)))
 	cy := i32(math.floor(f32(world_pos[1]) / f32(constants.CHUNK_SIZE)))
 	cz := i32(math.floor(f32(world_pos[2]) / f32(constants.CHUNK_SIZE)))
@@ -197,7 +198,7 @@ world_stamp_prefab :: proc(
 	chunk: ^ecs.ChunkComponent,
 	chunk_global_pos: [3]i32,
 	chunk_local_position: [3]i32,
-	prefab: ^VoxelPrefab,
+	prefab: ^shared.VoxelPrefab,
 ) -> int {
 	blocks_stamped := 0
 	// sync.mutex_lock(&chunk.mu)
@@ -219,8 +220,8 @@ world_stamp_prefab :: proc(
 	// blocks_stamped += 1
 
 	MissingBlockTemp :: struct {
-		key: ecs.ChunkPos,
-		mb: ecs.ChunkMissingBlock,
+		key: shared.ChunkPos,
+		mb: shared.ChunkMissingBlock,
 	}
 	
 	local_missing_blocks := make([dynamic]MissingBlockTemp, context.temp_allocator)
@@ -256,8 +257,8 @@ world_stamp_prefab :: proc(
 					cz = (cz % constants.CHUNK_SIZE + constants.CHUNK_SIZE) % constants.CHUNK_SIZE
 
 					append(&local_missing_blocks, MissingBlockTemp{
-						key = ecs.ChunkPos{target_chunk_x, target_chunk_y, target_chunk_z},
-						mb = ecs.ChunkMissingBlock{
+						key = shared.ChunkPos{target_chunk_x, target_chunk_y, target_chunk_z},
+						mb = shared.ChunkMissingBlock{
 							block = block,
 							x = cx,
 							y = cy,
@@ -280,7 +281,7 @@ world_stamp_prefab :: proc(
 		for item in local_missing_blocks {
 			list, ok := &world.chunk_missing_blocks[item.key]
 			if !ok {
-				world.chunk_missing_blocks[item.key] = make([dynamic]ecs.ChunkMissingBlock)
+				world.chunk_missing_blocks[item.key] = make([dynamic]shared.ChunkMissingBlock)
 				list = &world.chunk_missing_blocks[item.key]
 			}
 			append(list, item.mb)
@@ -293,7 +294,7 @@ world_stamp_prefab :: proc(
 
 @(private)
 world_build_spawn_offsets :: proc(world: ^ecs.World) {
-	offsets := make([dynamic]ecs.ChunkOffset)
+	offsets := make([dynamic]shared.ChunkOffset)
 
     expanded_render := world.render_distance + 1
 
@@ -301,12 +302,12 @@ world_build_spawn_offsets :: proc(world: ^ecs.World) {
 		for z := -expanded_render; z <= expanded_render; z += 1 {
 			for x := -expanded_render; x <= expanded_render; x += 1 {
 				d := x*x + y*y + z*z
-				append(&offsets, ecs.ChunkOffset{x, y, z, d})
+				append(&offsets, shared.ChunkOffset{x, y, z, d})
 			}
 		}
 	}
 
-	slice.sort_by(offsets[:], proc(a, b: ecs.ChunkOffset) -> bool {
+	slice.sort_by(offsets[:], proc(a, b: shared.ChunkOffset) -> bool {
 		return a.dist_sq < b.dist_sq
 	})
 
@@ -329,7 +330,7 @@ game_change_render_distance :: proc(state: ^GameState, render_distance: i32) {
 }
 
 @(private)
-chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: ecs.Block) -> int {
+chunk_get_or_add_palette_idx :: proc(chunk: ^ecs.ChunkComponent, block: shared.Block) -> int {
 	for p, i in chunk.palette {
 		if p == block do return i
 	}

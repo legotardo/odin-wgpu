@@ -1,18 +1,10 @@
 package game
 
-import "core:fmt"
 import "../libs/vox"
-import "../ecs"
 import "../constants"
+import "../shared"
 
-VoxelPrefab :: struct {
-    width, height, depth: i32,
-    palette: []ecs.Block,
-    blocks: []u8,
-	min_y_offset: i32,
-}
-
-vox_model_load :: proc(data: []u8) -> VoxelPrefab {
+vox_model_load :: proc(data: []u8) -> shared.VoxelPrefab {
     data, ok := vox.load_from_data(data, context.temp_allocator)
 
     assert(ok, "Failed to load voxel model")
@@ -24,13 +16,13 @@ vox_model_load :: proc(data: []u8) -> VoxelPrefab {
 	d := i32(main_model.size[1]) 
 	h := i32(main_model.size[2]) 
 
-	prefab := VoxelPrefab{
+	prefab := shared.VoxelPrefab{
 		width = w,
 		height = h,
 		depth = d,
 	}
 
-	prefab.palette = make([]ecs.Block, 256)
+	prefab.palette = make([]shared.Block, 256)
 	max_valid_blocks := len(constants.BLOCK_PALETTE_MAP)
 
 	for i in 0..<256 {
@@ -43,11 +35,11 @@ vox_model_load :: proc(data: []u8) -> VoxelPrefab {
 
 		vox_hex := (u32(vox_rgba[0]) << 16) | (u32(vox_rgba[1]) << 8) | u32(vox_rgba[2])
 
-		matched_block := ecs.Block.Air
+		matched_block := shared.Block.Air
 
 		for map_entry in constants.BLOCK_PALETTE_MAP {
 			if map_entry.value == vox_hex {
-				matched_block = ecs.Block(map_entry.key)
+				matched_block = shared.Block(map_entry.key)
 				break
 			}
 		}

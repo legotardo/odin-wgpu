@@ -22,6 +22,8 @@ RenderConfigUniform :: struct {
 SunUniform :: struct {
 	view_proj: linalg.Matrix4f32,
 	direction: linalg.Vector4f32,
+	sky_zenith: linalg.Vector4f32,
+	sky_horizon: linalg.Vector4f32,
 }
 
 renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f32 {

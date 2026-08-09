@@ -8,6 +8,8 @@ struct CameraUniform {
 struct SunUniform {
     view_proj: mat4x4<f32>,
     direction: vec4<f32>,
+    sky_zenith:  vec4<f32>,
+	sky_horizon: vec4<f32>,
 }
 
 struct RenderConfig {
@@ -50,14 +52,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal = textureSample(g_normal, g_sampler, in.uv).rgb;
     let depth = textureSample(g_depth, g_sampler, in.uv);
 
-    if (depth >= 1.0) {
-        return vec4<f32>(albedo, 1.0);
-    }
-
     let ndc_x = in.uv.x * 2.0 - 1.0;
     let ndc_y = 1.0 - in.uv.y * 2.0;
-    let ndc_pos = vec4<f32>(ndc_x, ndc_y, depth, 1.0);
 
+    let ndc_far = vec4<f32>(ndc_x, ndc_y, 1.0, 1.0);
+    let world_far_unprojected = camera.view_proj_inv * ndc_far;
+    let world_far_pos = world_far_unprojected.xyz / world_far_unprojected.w;
+    let view_dir = normalize(world_far_pos - camera.position);
+
+    let sky_zenith = sun.sky_zenith.rgb;
+    let sky_horizon = sun.sky_horizon.rgb;
+
+    let sky_blend = clamp(max(view_dir.y, 0.0), 0.0, 1.0);
+    let sky_color = mix(sky_horizon, sky_zenith, sky_blend);
+
+    if (depth >= 1.0) {
+        return vec4<f32>(sky_color, 1.0);
+    }
+
+    let ndc_pos = vec4<f32>(ndc_x, ndc_y, depth, 1.0);
     let world_unprojected = camera.view_proj_inv * ndc_pos;
     let world_position = world_unprojected.xyz / world_unprojected.w;
 
@@ -95,7 +108,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
     let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 
-    let final_color = mix(fog_color, lit_albedo, fog_factor);
+    let final_color = mix(sky_horizon, lit_albedo, fog_factor);
 
     return vec4<f32>(final_color, 1.0);
 }

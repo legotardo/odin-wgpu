@@ -1,7 +1,6 @@
 package game
 
 import "core:thread"
-import "vendor:wgpu"
 
 import "../ecs"
 import "../input"
@@ -33,6 +32,7 @@ GameState :: struct {
 	last_player_cx: i32,
 	last_player_cy: i32,
 	last_player_cz: i32,
+	day_time: f32,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> (state: GameState) {
@@ -145,6 +145,8 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	input.input_update(&state.input)
 
 	microui_update(state, dt)
+
+	state.day_time += 2 * dt
 }
 
 game_destroy :: proc(state: ^GameState) {

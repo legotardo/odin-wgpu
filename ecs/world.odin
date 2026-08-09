@@ -1,6 +1,7 @@
 package ecs
 
 import "core:sync"
+import "../shared"
 MAX_ENTITIES :: 100000
 
 ComponentType :: enum {
@@ -34,8 +35,8 @@ World :: struct {
 	cameras:            [1]CameraComponent,
 
 	chunk_map: map[[3]i32]int,
-	chunk_spawn_offset: [dynamic]ChunkOffset,
-	chunk_missing_blocks: map[ChunkPos][dynamic]ChunkMissingBlock,
+	chunk_spawn_offset: [dynamic]shared.ChunkOffset,
+	chunk_missing_blocks: map[shared.ChunkPos][dynamic]shared.ChunkMissingBlock,
 	chunk_missing_blocks_mu: sync.Mutex,
 
 	render_distance: i32,
@@ -48,7 +49,7 @@ world_init :: proc(allocator := context.allocator) -> ^World {
 	world.free_indices = make([dynamic]u32, 0, MAX_ENTITIES, allocator)
 	world.active_chunks = make([dynamic]u32, 0, 4096, allocator)
 	world.chunk_map = make(map[[3]i32]int, 4096, allocator) 
-	world.chunk_missing_blocks = make(map[ChunkPos][dynamic]ChunkMissingBlock, 1024, allocator)
+	world.chunk_missing_blocks = make(map[shared.ChunkPos][dynamic]shared.ChunkMissingBlock, 1024, allocator)
 
 	return world
 }

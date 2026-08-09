@@ -5,6 +5,7 @@ import "core:thread"
 import "core:math/linalg"
 import "../ecs"
 import "../renderer"
+import "../shared"
 
 ChunkTaskData :: struct {
 	entity: ecs.Entity,
@@ -40,7 +41,7 @@ ChunkGenDecorationData :: struct {
 ChunkGenMissingBlocksData :: struct {
 	entity: ecs.Entity,
 	world: ^ecs.World,
-	chunk_pos: ecs.ChunkPos,
+	chunk_pos: shared.ChunkPos,
 }
 
 TASKS_LIMIT :: 100

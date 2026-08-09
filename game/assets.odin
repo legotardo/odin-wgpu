@@ -3,6 +3,7 @@ package game
 import "core:strings"
 import "../logger"
 import "../renderer"
+import "../shared"
 
 MaterialHandle :: distinct string
 MeshHandle :: distinct string
@@ -11,14 +12,14 @@ VoxelPrefabHandle :: distinct string
 Assets :: struct {
 	materials:     map[string]renderer.Material,
 	meshes:        map[string]renderer.Mesh,
-	voxel_prefabs: map[string]VoxelPrefab,
+	voxel_prefabs: map[string]shared.VoxelPrefab,
 }
 
 assets_init :: proc() -> Assets {
 	return {
 		materials     = make(map[string]renderer.Material),
 		meshes        = make(map[string]renderer.Mesh),
-		voxel_prefabs = make(map[string]VoxelPrefab),
+		voxel_prefabs = make(map[string]shared.VoxelPrefab),
 	}
 }
 
@@ -78,7 +79,7 @@ assets_get_mesh :: proc(assets: ^Assets, handle: MeshHandle) -> ^renderer.Mesh {
 assets_register_voxel_prefab :: proc(
 	assets: ^Assets,
 	name: string,
-	prefab: VoxelPrefab,
+	prefab: shared.VoxelPrefab,
 ) -> VoxelPrefabHandle {
 	found_prefab, ok := assets.voxel_prefabs[name]
 	if (ok) {
@@ -100,7 +101,7 @@ assets_unregister_voxel_prefab :: proc(assets: ^Assets, name: string) {
 	}
 }
 
-assets_get_voxel_prefab :: proc(assets: ^Assets, handle: VoxelPrefabHandle) -> ^VoxelPrefab {
+assets_get_voxel_prefab :: proc(assets: ^Assets, handle: VoxelPrefabHandle) -> ^shared.VoxelPrefab {
 	return &assets.voxel_prefabs[string(handle)]
 }
 

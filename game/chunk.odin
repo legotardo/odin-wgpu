@@ -7,6 +7,7 @@ import "core:sync"
 import "core:thread"
 import "../constants"
 import "../ecs"
+import "../shared"
 
 // Chunk states cycle
 // PendingTerrain > DoingTerrain
@@ -77,7 +78,7 @@ system_chunk_spawner :: proc(state: ^GameState, dt: f32) {
 	player_cz := i32(math.floor(player_pos.z / cs_world))
 
 	prune_limit := state.world.render_distance + 2
-	missing_to_prune := make([dynamic]ecs.ChunkPos, context.temp_allocator)
+	missing_to_prune := make([dynamic]shared.ChunkPos, context.temp_allocator)
 
 	sync.mutex_lock(&state.world.chunk_missing_blocks_mu)
 	scanned := 0
@@ -203,7 +204,7 @@ system_chunk_generate :: proc(state: ^GameState, dt: f32) {
 			task_data := new(ChunkGenMissingBlocksData)
 			task_data.world = state.world
 			task_data.entity = entity
-			task_data.chunk_pos = ecs.ChunkPos{cx, cy, cz}
+			task_data.chunk_pos = shared.ChunkPos{cx, cy, cz}
 
 			thread.pool_add_task(state.thread_pool, context.allocator, chunk_generate_missing_blocks, task_data, 0)
 			continue

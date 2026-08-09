@@ -5,6 +5,7 @@ import "core:thread"
 import "../constants"
 import "../ecs"
 import "../libs/fast_noise"
+import "../shared"
 
 terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))
 temp_node := fast_noise.NewFromEncodedNodeTree("DQAE@BCKRwvT8JBgAAKIVECAY@BQ16NwvxjhetQ/BAO4HoW+C4/CdT0E", transmute(u32)~u32(0))
@@ -19,7 +20,7 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 	chunk := &data.world.chunks[entity_index]
 
 	if len(chunk.palette) == 0 {
-		append(&chunk.palette, ecs.Block.Air)
+		append(&chunk.palette, shared.Block.Air)
 	}
 
 	seed: i32 = 12345
@@ -52,7 +53,13 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 			humid_idx := biome_noise_to_index_threshold(humid_buffer[idx])
 			
 			biome_id := biome_matrix[humid_idx][temp_idx]
-			config := biome_catalog[biome_id]
+			config := &biome_catalog[biome_id]
+
+			// TODO: Primary biome should be
+			// the biome with larger scale in the chunk
+			if chunk.primary_biome == nil {
+				chunk.primary_biome = config
+			}
 
 			global_x := i32(chunk_start_x) + x
 			global_z := i32(chunk_start_z) + z
@@ -61,7 +68,7 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 				world_block_y := chunk_start_y + y
 
 				if world_block_y <= surface_block_y {
-					block_to_place: ecs.Block = .Air
+					block_to_place: shared.Block = .Air
 
 					if world_block_y == surface_block_y {
 						block_to_place = biome_get_variant_block(config.surface_blocks, global_x, world_block_y, global_z)

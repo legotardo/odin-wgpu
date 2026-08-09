@@ -129,8 +129,7 @@ update :: proc(dt: f32) {
 		view_proj_inv = linalg.matrix4_inverse(cam_matrix),
 		position = cam_pos
 	})
-	sun_direction := linalg.Vector3f32{-0.5, -0.9, -0.3}
-	sun_uniform := game.game_calculate_sun(cam_pos, sun_direction)
+	sun_uniform := game.game_calculate_sun(&state.game_state, cam_pos)
 	renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_sun_buffer, &sun_uniform)
 
 	game_items_to_draw := game.game_get_render_items(&state.game_state)

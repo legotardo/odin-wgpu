@@ -1,51 +1,24 @@
 package game
 
-import "../ecs"
-
-BiomeType :: enum u8 {
-	Desert,
-	Plains,
-}
-
-BlockVariant :: struct {
-	block:  ecs.Block,
-	weight: int,
-}
-
-BiomeProp :: struct {
-	prefab: ^VoxelPrefab,
-	rarity: f32, // 0.0 - 1.0
-	min_spacing: i32,
-	max_per_chunk: i32,
-}
-
-BiomeConfig :: struct {
-	id:                BiomeType,
-	name:              string,
-	surface_blocks:    []BlockVariant,
-	sub_surface_block: ecs.Block,
-	sub_surface_depth: i32,
-	base_block:        ecs.Block,
-	props: []BiomeProp,
-}
+import "../shared"
 
 BIOME_ZONES :: 3
 
-biome_matrix: [BIOME_ZONES][BIOME_ZONES]BiomeType = {
+biome_matrix: [BIOME_ZONES][BIOME_ZONES]shared.BiomeType = {
 //              ^ Humid      ^ Temp
 	{.Plains, .Plains, .Desert},
 	{.Plains, .Plains, .Desert},
 	{.Plains, .Plains, .Plains},
 }
 
-biome_catalog: [len(BiomeType)]BiomeConfig
+biome_catalog: [len(shared.BiomeType)]shared.BiomeConfig
 
 biome_catalog_init :: proc(state: ^GameState) {
-    plains_surface := make([]BlockVariant, 3)
+    plains_surface := make([]shared.BlockVariant, 3)
     plains_surface[0] = {block = .Grass1, weight = 93}
     plains_surface[1] = {block = .Grass2, weight = 5}
     plains_surface[2] = {block = .Grass3, weight = 2}
-    plains_props := make([]BiomeProp, 1)
+    plains_props := make([]shared.BiomeProp, 1)
 	plains_props[0] = {
 		prefab = assets_get_voxel_prefab(&state.assets, "tree"),
 		rarity = 0.001,
@@ -54,7 +27,7 @@ biome_catalog_init :: proc(state: ^GameState) {
 	}
 
 	
-    biome_catalog[BiomeType.Plains] = BiomeConfig{
+    biome_catalog[shared.BiomeType.Plains] = shared.BiomeConfig{
         id = .Plains,
         name = "Plains",
         surface_blocks = plains_surface,
@@ -62,11 +35,13 @@ biome_catalog_init :: proc(state: ^GameState) {
         sub_surface_depth = 4,
         base_block = .Grass1,
 		props = plains_props,
+		zenith_day  = {0.15, 0.45, 0.85},
+		horizon_day = {0.55, 0.75, 0.95},
     }
 
-    desert_surface := make([]BlockVariant, 1)
+    desert_surface := make([]shared.BlockVariant, 1)
     desert_surface[0] = {block = .Sand1, weight = 100}
-	desert_props := make([]BiomeProp, 1)
+	desert_props := make([]shared.BiomeProp, 1)
 	desert_props[0] = {
 		prefab = assets_get_voxel_prefab(&state.assets, "cactus"),
 		rarity = 0.0001,
@@ -74,7 +49,7 @@ biome_catalog_init :: proc(state: ^GameState) {
 		max_per_chunk = 100,
 	}
 
-    biome_catalog[BiomeType.Desert] = BiomeConfig{
+    biome_catalog[shared.BiomeType.Desert] = shared.BiomeConfig{
         id = .Desert,
         name = "Desert",
         surface_blocks = desert_surface,
@@ -82,6 +57,8 @@ biome_catalog_init :: proc(state: ^GameState) {
         sub_surface_depth = 4,
         base_block = .Sand1,
 		props = desert_props,
+		zenith_day  = {0.35, 0.55, 0.75},
+		horizon_day = {0.95, 0.80, 0.45},
     }
 }
 
@@ -119,7 +96,7 @@ biome_spatial_hash_f32 :: proc(x, y, seed: i32) -> f32 {
     return f32(h) / 4294967295.0
 }
 
-biome_get_variant_block :: proc(variants: []BlockVariant, world_x, world_y, world_z: i32) -> ecs.Block {
+biome_get_variant_block :: proc(variants: []shared.BlockVariant, world_x, world_y, world_z: i32) -> shared.Block {
 	if len(variants) == 0 do return .Air
 	if len(variants) == 1 do return variants[0].block
 
