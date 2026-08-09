@@ -99,14 +99,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         shadow_factor /= 9.0;
     }
 
-    let shadow_color = albedo * vec3<f32>(0.65, 0.72, 0.82);
-    let lit_albedo = mix(shadow_color, albedo, shadow_factor);
+    let sun_height = sun.direction.w;
+    let ambient_color = albedo * sky_horizon * 0.6;
+    
+    var dir_color = vec3<f32>(0.0);
+    if (sun_height > 0.0) {
+        let day_intensity = clamp(sun_height * 4.0, 0.0, 1.0);
+        dir_color = albedo * mix(sky_horizon, vec3<f32>(1.0, 1.0, 0.95), day_intensity);
+    } else {
+        let night_intensity = clamp(abs(sun_height) * 2.0, 0.0, 1.0);
+        dir_color = albedo * mix(sky_horizon, vec3<f32>(0.15, 0.25, 0.45), night_intensity);
+    }
+
+    let lit_albedo = mix(ambient_color, dir_color, shadow_factor);
     
     let dist = length(camera.position - world_position);
     let fog_start = f32(render_config.render_distance * 9);
     let fog_end = fog_start + 10.0;
     let fog_factor = clamp((fog_end - dist) / (fog_end - fog_start), 0.0, 1.0);
-    let fog_color = vec3<f32>(0.333, 0.721, 1.0);
+    // let fog_color = vec3<f32>(0.333, 0.721, 1.0);
 
     let final_color = mix(sky_horizon, lit_albedo, fog_factor);
 

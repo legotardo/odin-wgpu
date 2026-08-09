@@ -114,13 +114,21 @@ game_calculate_sun :: proc(
 		math.sin(sun_angle),
 		-0.3,
 	})
-	norm_dir := linalg.vector_normalize(sun_dir)
+	
+	sun_height := sun_dir.y
+	
+	light_dir := sun_dir
+	if sun_height < 0.0 {
+		light_dir = -sun_dir
+	}
+	
+	norm_dir := linalg.vector_normalize(light_dir)
 	
 	ortho_size: f32 = 100.0
 	resolution: f32 = 8192.0
 	texel_size := (ortho_size * 2.0) / resolution
 
-	forward := norm_dir
+	forward := -norm_dir
 	up_ref := linalg.Vector3f32{0.0, 1.0, 0.0}
 	
 	right := linalg.vector_normalize(linalg.vector_cross(up_ref, forward))
@@ -136,35 +144,12 @@ game_calculate_sun :: proc(
 	dy := snapped_y - proj_y
 
 	snapped_target := player_pos + (right * dx) + (up * dy)
-	sun_pos := snapped_target - (norm_dir * 500.0)
+	sun_pos := snapped_target + (norm_dir * 500.0)
 	
 	view_matrix := linalg.matrix4_look_at_f32(sun_pos, snapped_target, {0.0, 1.0, 0.0})
 
-	world_height: f32 = 80.0
-	vertical := linalg.Vector3f32{0.0, world_height, 0.0}
-
-	near_z: f32 = math.F32_MAX
-	far_z: f32 = math.F32_MIN
-
-	corners := [8]linalg.Vector3f32{
-		right * ortho_size + up * ortho_size + vertical,
-		right * ortho_size + up * ortho_size - vertical,
-		right * ortho_size - up * ortho_size + vertical,
-		right * ortho_size - up * ortho_size - vertical,
-		-right * ortho_size + up * ortho_size + vertical,
-		-right * ortho_size + up * ortho_size - vertical,
-		-right * ortho_size - up * ortho_size + vertical,
-		-right * ortho_size - up * ortho_size - vertical,
-	}
-
-	for corner in corners {
-		z := linalg.vector_dot(snapped_target + corner - sun_pos, forward)
-		near_z = math.min(near_z, z)
-		far_z = math.max(far_z, z)
-	}
-
-	near: f32 = math.max(near_z, 1.0)
-	far: f32 = math.max(far_z, near + 100.0)
+	near: f32 = 0.1
+	far: f32 = 1000.0
 
 	proj_matrix := linalg.MATRIX4F32_IDENTITY
 	proj_matrix[0, 0] = 1.0 / ortho_size
@@ -172,8 +157,6 @@ game_calculate_sun :: proc(
 	proj_matrix[2, 2] = 1.0 / (near - far)
 	proj_matrix[2, 3] = near / (near - far)
 
-	sun_height := sun_dir.y
-	
 	sunset_color := linalg.Vector3f32{0.95, 0.40, 0.15}
 	night_zenith := linalg.Vector3f32{0.02, 0.02, 0.08}
 	night_horizon := linalg.Vector3f32{0.08, 0.08, 0.18}
@@ -195,7 +178,6 @@ game_calculate_sun :: proc(
 	}
 
 	if sun_height > 0.2 {
-		// do nothing
 	} else if sun_height > -0.1 {
 		t := (sun_height - (-0.1)) / 0.3
 		current_zenith = linalg.lerp(sunset_color, current_zenith, t)
@@ -208,7 +190,7 @@ game_calculate_sun :: proc(
 
 	return {
 		view_proj = proj_matrix * view_matrix,
-		direction = {norm_dir.x, norm_dir.y, norm_dir.z, 0.0},
+		direction = {norm_dir.x, norm_dir.y, norm_dir.z, sun_height},
 		sky_zenith = {current_zenith.x, current_zenith.y, current_zenith.z, 1.0},
 		sky_horizon = {current_horizon.x, current_horizon.y, current_horizon.z, 1.0},
 	}

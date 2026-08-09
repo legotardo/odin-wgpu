@@ -14,6 +14,7 @@ Key :: enum u8 {
 	Escape,
 	Equal,
 	Minus,
+	L,
 }
 
 

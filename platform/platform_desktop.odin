@@ -161,6 +161,8 @@ key_from_glfw :: proc(key: c.int) -> input.Key {
 		return .Equal
 	case glfw.KEY_MINUS:
 		return .Minus
+	case glfw.KEY_L:
+		return .L
 	case:
 		return .Unkown
 	}

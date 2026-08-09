@@ -146,7 +146,9 @@ game_update :: proc(state: ^GameState, dt: f32) {
 
 	microui_update(state, dt)
 
-	state.day_time += 2 * dt
+	if (input.is_key_pressed(&state.input, .L)) {
+		state.day_time += 2 * dt
+	}
 }
 
 game_destroy :: proc(state: ^GameState) {
