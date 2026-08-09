@@ -133,6 +133,14 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	if (input.is_key_just_pressed(&state.input, .LeftAlt)) {
 		platform.toggle_cursor(state.window)
 	}
+	if (input.is_key_just_pressed(&state.input, .Equal) && state.world.render_distance < 21) {
+		game_change_render_distance(state, state.world.render_distance + 1)
+		state.last_player_cx += 1
+	}
+	if (input.is_key_just_pressed(&state.input, .Minus)) {
+		game_change_render_distance(state, state.world.render_distance - 1)
+		state.last_player_cx += 1
+	}
 
 	input.input_update(&state.input)
 

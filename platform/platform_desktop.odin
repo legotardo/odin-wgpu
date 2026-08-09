@@ -157,6 +157,10 @@ key_from_glfw :: proc(key: c.int) -> input.Key {
 		return .LeftShift
 	case glfw.KEY_ESCAPE:
 		return .Escape
+	case glfw.KEY_EQUAL:
+		return .Equal
+	case glfw.KEY_MINUS:
+		return .Minus
 	case:
 		return .Unkown
 	}

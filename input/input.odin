@@ -12,6 +12,8 @@ Key :: enum u8 {
 	Space,
 	LeftShift,
 	Escape,
+	Equal,
+	Minus,
 }
 
 

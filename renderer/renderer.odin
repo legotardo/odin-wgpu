@@ -549,7 +549,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 			view = get_texture_view(&r.renderer_manager, r.h_gbuffer_albedo_view),
 			loadOp = .Clear,
 			storeOp = .Store,
-			clearValue = {0.333, 0.721, 1.0, 1.0},
+			clearValue = {0.0, 0.0, 0.0, 0.0},
 			depthSlice = wgpu.DEPTH_SLICE_UNDEFINED,
 		},
 		{ 
