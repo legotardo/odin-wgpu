@@ -6,6 +6,7 @@ import "core:math/linalg"
 import "../ecs"
 import "../renderer"
 import "../constants"
+import "../shared"
 
 game_get_render_items :: proc(
 	state: ^GameState,
@@ -69,39 +70,33 @@ game_get_render_items :: proc(
 	return items[:]
 }
 
-game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
+game_get_camera_components :: proc(state: ^GameState) -> (t: ecs.TransformComponent, c: ecs.CameraComponent, found: bool) {
 	mask := ecs.ComponentMask{.TransformComponent, .CameraComponent}
 
 	for i in 0 ..< len(state.world.entities) {
 		if (state.world.masks[i] & mask) == mask {
-			t := state.world.transforms[i]
-			c := state.world.cameras[i]
-
-			eye_pos := t.position + c.offset
-
-			view := linalg.matrix4_look_at_f32(eye_pos, c.target + c.offset, c.up)
-			proj := linalg.matrix4_perspective_f32(c.fovy, c.aspect, c.znear, c.zfar)
-
-			return proj * view
+			return state.world.transforms[i], state.world.cameras[i], true
 		}
 	}
 
-	return linalg.MATRIX4F32_IDENTITY
+	return {}, {}, false
+}
+
+game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
+	t, c, found := game_get_camera_components(state)
+	if !found do return linalg.MATRIX4F32_IDENTITY
+
+	eye_pos := t.position + c.offset
+	view := linalg.matrix4_look_at_f32(eye_pos, c.target + c.offset, c.up)
+	proj := linalg.matrix4_perspective_f32(c.fovy, c.aspect, c.znear, c.zfar)
+
+	return proj * view
 }
 
 game_get_camera_eye :: proc(state: ^GameState) -> linalg.Vector3f32 {
-	mask := ecs.ComponentMask{.TransformComponent, .CameraComponent}
-
-	for i in 0 ..< len(state.world.entities) {
-		if (state.world.masks[i] & mask) == mask {
-			t := state.world.transforms[i]
-			c := state.world.cameras[i]
-
-			return t.position + c.offset
-		}
-	}
-
-	return { }
+	t, c, found := game_get_camera_components(state)
+	if found do return t.position + c.offset
+	return {}
 }
 
 game_update_camera_component :: proc(state: ^GameState, width, height: u32) {
@@ -163,32 +158,16 @@ game_calculate_sun :: proc(
 		0.1, 1000.0
 	)
 
-	day_zenith := linalg.Vector3f32{0.15, 0.45, 0.85}
-	day_horizon := linalg.Vector3f32{0.55, 0.75, 0.95}
-
-	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-	player_chunk := [3]i32{
-		i32(math.floor(player_pos.x / cs_world)),
-		i32(math.floor(player_pos.y / cs_world)),
-		i32(math.floor(player_pos.z / cs_world)),
-	}
-	chunk_idx := world_get_chunk_at(state.world, player_chunk)
-	if chunk_idx >= 0 {
-		biome := state.world.chunks[chunk_idx].primary_biome
-		if biome != nil {
-			day_zenith = biome.zenith_day
-			day_horizon = biome.horizon_day
-		}
-	}
+	day_zenith, day_horizon := game_get_blended_biome_sky(state, player_pos)
 
 	night_zenith := linalg.Vector3f32{0.006, 0.010, 0.030}
 	night_horizon := linalg.Vector3f32{0.015, 0.025, 0.060}
 	twilight_zenith := linalg.Vector3f32{0.10, 0.12, 0.24}
 	twilight_horizon := linalg.Vector3f32{0.90, 0.30, 0.08}
 
-	day_blend := game_smoothstep(-0.12, 0.22, sun_height)
-	twilight_rise := game_smoothstep(-0.32, -0.02, sun_height)
-	twilight_fall := 1.0 - game_smoothstep(0.08, 0.38, sun_height)
+	day_blend := smoothstep(-0.12, 0.22, sun_height)
+	twilight_rise := smoothstep(-0.32, -0.02, sun_height)
+	twilight_fall := 1.0 - smoothstep(0.08, 0.38, sun_height)
 	twilight_blend := twilight_rise * twilight_fall
 
 	current_zenith := linalg.lerp(night_zenith, day_zenith, day_blend)
@@ -204,7 +183,99 @@ game_calculate_sun :: proc(
 	}
 }
 
-game_smoothstep :: proc "contextless" (edge0, edge1, x: f32) -> f32 {
+@(private="file")
+get_chunk_biome_sky :: proc(
+	state: ^GameState,
+	chunk_x, reference_y, chunk_z: i32,
+) -> (zenith, horizon: linalg.Vector3f32, found: bool) {
+	directions := [2]i32{-1, 1}
+	for distance in 0 ..= state.world.render_distance {
+		for direction in directions {
+			if distance == 0 && direction == 1 do continue
+
+			chunk_y := reference_y
+			if distance > 0 {
+				chunk_y += distance * direction
+			}
+
+			chunk_idx := world_get_chunk_at(state.world, {chunk_x, chunk_y, chunk_z})
+			if chunk_idx < 0 do continue
+
+			chunk := &state.world.chunks[chunk_idx]
+			if chunk.state != .Done do continue
+
+			weight_sum: f32
+			for biome_idx in 0 ..< len(shared.BiomeType) {
+				weight := chunk.biome_weights[biome_idx]
+				if weight <= 0 do continue
+
+				biome := &biome_catalog[shared.BiomeType(biome_idx)]
+				zenith += biome.zenith_day * weight
+				horizon += biome.horizon_day * weight
+				weight_sum += weight
+			}
+
+			if weight_sum > 0 {
+				return zenith / weight_sum, horizon / weight_sum, true
+			}
+		}
+	}
+
+	return {}, {}, false
+}
+
+@(private="file")
+game_get_blended_biome_sky :: proc(
+	state: ^GameState,
+	player_pos: linalg.Vector3f32,
+) -> (zenith, horizon: linalg.Vector3f32) {
+	default_zenith := linalg.Vector3f32{0.15, 0.45, 0.85}
+	default_horizon := linalg.Vector3f32{0.55, 0.75, 0.95}
+	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
+
+	grid_x := player_pos.x / cs_world - 0.5
+	grid_z := player_pos.z / cs_world - 0.5
+	base_x := i32(math.floor(grid_x))
+	base_z := i32(math.floor(grid_z))
+	chunk_y := i32(math.floor(player_pos.y / cs_world))
+	tx := grid_x - f32(base_x)
+	tz := grid_z - f32(base_z)
+
+	weights := [4]f32{
+		(1.0 - tx) * (1.0 - tz),
+		tx * (1.0 - tz),
+		(1.0 - tx) * tz,
+		tx * tz,
+	}
+	coords := [4][2]i32{
+		{base_x, base_z},
+		{base_x + 1, base_z},
+		{base_x, base_z + 1},
+		{base_x + 1, base_z + 1},
+	}
+
+	weight_sum: f32
+	for coord, sample_idx in coords {
+		sample_zenith, sample_horizon, found := get_chunk_biome_sky(
+			state, coord.x, chunk_y, coord.y,
+		)
+		if !found do continue
+
+		weight := weights[sample_idx]
+		zenith += sample_zenith * weight
+		horizon += sample_horizon * weight
+		weight_sum += weight
+	}
+
+	if weight_sum <= 0 {
+		return default_zenith, default_horizon
+	}
+
+	return zenith / weight_sum, horizon / weight_sum
+}
+
+@(private="file")
+smoothstep :: proc "contextless" (edge0, edge1, x: f32) -> f32 {
 	t := clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
 	return t * t * (3.0 - 2.0 * t)
 }

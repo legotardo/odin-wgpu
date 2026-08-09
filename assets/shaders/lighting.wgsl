@@ -47,7 +47,7 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 @group(0) @binding(8) var shadow_sampler: sampler_comparison;
 
 const SHADOW_MAP_SIZE: f32 = 4096.0;
-const SHADOW_STRENGTH: f32 = 0.50;
+const SHADOW_STRENGTH: f32 = 0.30;
 const AMBIENT_SKY_TINT: f32 = 0.10;
 
 fn sample_shadow(world_position: vec3<f32>, n_dot_l: f32) -> f32 {
@@ -118,7 +118,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_position = world_unprojected.xyz / world_unprojected.w;
 
     let sun_height = sun.direction.w;
-    let daylight = smoothstep(-0.08, 0.25, sun_height);
+    let daylight = smoothstep(-0.12, 0.22, sun_height);
+    let twilight_rise = smoothstep(-0.32, -0.02, sun_height);
+    let twilight_fall = 1.0 - smoothstep(0.08, 0.38, sun_height);
+    let twilight = twilight_rise * twilight_fall;
+    let ambient_intensity = max(daylight, twilight * 0.45);
     let direct_intensity = smoothstep(0.0, 0.16, sun_height);
     var world_normal = vec3<f32>(0.0, 1.0, 0.0);
     if (dot(normal, normal) > 0.001) {
@@ -136,7 +140,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let sky_ambient = mix(sky_horizon, sky_zenith, 0.35) * 0.58;
     let ambient_day = mix(vec3<f32>(0.52), sky_ambient, AMBIENT_SKY_TINT);
     let ambient_night = vec3<f32>(0.08, 0.08, 0.035);
-    let ambient_light = mix(ambient_night, ambient_day, daylight);
+    let ambient_light = mix(ambient_night, ambient_day, ambient_intensity);
 
     let warm_sun = vec3<f32>(1.0, 0.32, 0.08);
     let noon_sun = vec3<f32>(1.0, 0.97, 0.88);

@@ -41,6 +41,9 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 	BASE_HEIGHT: f32 = 40.0
 	HEIGHT_AMPLITUDE: f32 = 48.0
 	blocks_placed: i32 = 0
+	biome_block_counts: [len(shared.BiomeType)]i32
+	chunk.primary_biome = nil
+	chunk.biome_weights = {}
 
 	for z in 0 ..< chunk_size {
 		for x in 0 ..< chunk_size {
@@ -54,12 +57,6 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 			
 			biome_id := biome_matrix[humid_idx][temp_idx]
 			config := &biome_catalog[biome_id]
-
-			// TODO: Primary biome should be
-			// the biome with larger scale in the chunk
-			if chunk.primary_biome == nil {
-				chunk.primary_biome = config
-			}
 
 			global_x := i32(chunk_start_x) + x
 			global_z := i32(chunk_start_z) + z
@@ -80,8 +77,21 @@ chunk_generate_terrain :: proc(t: thread.Task) {
 
 					chunk_set_block(chunk, x, y, z, block_to_place)
 					blocks_placed += 1
+					biome_block_counts[int(biome_id)] += 1
 				}
 			}
+		}
+	}
+
+	dominant_count: i32
+	for biome_idx in 0 ..< len(shared.BiomeType) {
+		count := biome_block_counts[biome_idx]
+		if blocks_placed > 0 {
+			chunk.biome_weights[biome_idx] = f32(count) / f32(blocks_placed)
+		}
+		if count > dominant_count {
+			dominant_count = count
+			chunk.primary_biome = &biome_catalog[shared.BiomeType(biome_idx)]
 		}
 	}
 

@@ -1,7 +1,8 @@
 package game
 
-import "core:math/linalg"
-import "../ecs"
+import "core:math"
+import "../input"
+import "../constants"
 import "../renderer"
 
 system_update_lights :: proc(state: ^GameState) {
@@ -27,4 +28,15 @@ system_update_lights :: proc(state: ^GameState) {
 	// }
 
     // renderer.renderer_update_light_buffer(state.renderer, gpu_lights[:])
+}
+
+system_update_sun :: proc(state: ^GameState, dt: f32) {
+    state.day_time += 2 * dt * constants.SUN_CYCLE_SPEED
+
+    if (input.is_key_pressed(&state.input, .L)) {
+		state.day_time += 2 * dt * 20
+		if state.day_time >= 2 * math.PI {
+			state.day_time -= 2 * math.PI
+		}
+	}
 }

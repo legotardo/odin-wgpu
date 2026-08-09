@@ -42,6 +42,7 @@ ChunkComponent :: struct {
 	mesh_missing_mask: u8,
 	coord: shared.ChunkPos,
 	primary_biome: ^shared.BiomeConfig,
+	biome_weights: [len(shared.BiomeType)]f32,
 }
 
 PhysicsComponent :: struct {

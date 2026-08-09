@@ -1,6 +1,5 @@
 package game
 
-import "core:math"
 import "core:thread"
 
 import "../ecs"
@@ -45,6 +44,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	state.world = ecs.world_init()
 	state.palette = palette_init_default()
 	state.thread_pool = new(thread.Pool)
+	state.day_time = 1
 
 	num_cpus := platform.get_num_cores()
 	thread.pool_init(state.thread_pool, context.allocator, num_cpus - 1)
@@ -90,6 +90,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 
 	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_spawner)
 	ecs_dispatcher_add_tick(&state.dispatcher, system_chunk_generate)
+	ecs_dispatcher_add_tick(&state.dispatcher, system_update_sun)
 
 	ecs_dispatcher_add_frame(&state.dispatcher, system_resolve_thread_tasks)
 	ecs_dispatcher_add_frame(&state.dispatcher, system_physics)
@@ -146,13 +147,6 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	input.input_update(&state.input)
 
 	microui_update(state, dt)
-
-	if (input.is_key_pressed(&state.input, .L)) {
-		state.day_time += 2 * dt
-		if state.day_time >= 2 * math.PI {
-			state.day_time -= 2 * math.PI
-		}
-	}
 
 	platform.watch_file_update()
 }
