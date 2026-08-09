@@ -1,5 +1,7 @@
 package renderer
 
+import "core:fmt"
+import "core:os"
 import "core:math/linalg"
 import "vendor:wgpu"
 
@@ -36,12 +38,14 @@ renderer_get_instancing_items :: proc(items: []RenderItem) -> []linalg.Matrix4f3
 
     transforms := make([]linalg.Matrix4f32, count)
 
-    for item, i in items {
-        if !item.should_use_instance {
-            continue
-        }
-        
-		transforms[i] = item.transform
+	transform_idx := 0
+	for item in items {
+		if !item.should_use_instance {
+			continue
+		}
+
+		transforms[transform_idx] = item.transform
+		transform_idx += 1
     }
 
 	return transforms
@@ -144,5 +148,124 @@ recreate_lighting_bind_group :: proc(r: ^Renderer) {
 		r.h_lighting_bind_group = create_bind_group(&r.renderer_manager, "lighting bind group", r.h_lighting_bind_group_layout, entries)
 	} else {
 		update_bind_group(&r.renderer_manager, r.h_lighting_bind_group, "lighting bind group", r.h_lighting_bind_group_layout, entries)
+	}
+}
+
+@(private)
+recreate_shadow_pipeline :: proc(r: ^Renderer) {
+	shadow_shader := create_shader_module(&r.renderer_manager, string(shadow_shader_src))
+	defer delete_shader_module(shadow_shader)
+	r.h_shadow_pipeline_layout = create_pipeline_layout(&r.renderer_manager, "shadow pipeline layout", {r.h_global_bind_group_layout, r.h_sun_bind_group_layout})
+	vertex_layout := vertex_get_buffer_layout()
+	r.h_shadow_pipeline = create_pipeline(&r.renderer_manager, &{
+		label = "shadow render pipeline",
+		layout = get_pipeline_layout(&r.renderer_manager, r.h_shadow_pipeline_layout),
+		vertex = {
+			module = shadow_shader,
+			entryPoint = "vs_main",
+			bufferCount = 1,
+			buffers = &vertex_layout,
+		},
+		primitive = {
+			topology = .TriangleList,
+			frontFace = .CCW,
+			cullMode = .Back,
+		},
+		multisample = {count = 1, mask = 0xFFFFFFFF},
+		depthStencil = &{
+			format = .Depth32Float,
+			depthWriteEnabled = .True,
+			depthCompare = .Less,
+			depthBias = 2,
+			depthBiasSlopeScale = 2.0,
+			depthBiasClamp = 0.0,
+		},
+	})
+}
+
+@(private)
+recreate_lighting_pipeline :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
+	// TODO: This will not work on wasm
+	lighting_shader_src, err := os.read_entire_file_from_path("./assets/shaders/lighting.wgsl", context.allocator)
+	defer delete(lighting_shader_src)
+	if err != os.ERROR_NONE {
+		fmt.eprintf("Error reading file info:", err)
+		return
+	}
+	lighting_shader := create_shader_module(&r.renderer_manager, string(lighting_shader_src))
+	defer delete_shader_module(lighting_shader)
+	r.h_lighting_pipeline_layout = create_pipeline_layout(&r.renderer_manager, "lighting pipeline layout", {r.h_lighting_bind_group_layout})
+	r.h_lighting_pipeline = create_pipeline(&r.renderer_manager, &{
+		label = "lighting render pipeline",
+		layout = get_pipeline_layout(&r.renderer_manager, r.h_lighting_pipeline_layout),
+		vertex = {
+			module = lighting_shader,
+			entryPoint = "vs_main",
+			bufferCount = 0,
+			buffers = nil,
+		},
+		fragment = &{
+			module = lighting_shader,
+			entryPoint = "fs_main",
+			targetCount = 1,
+			targets = &wgpu.ColorTargetState {
+				format = s_config.format,
+				writeMask = wgpu.ColorWriteMaskFlags_All
+			},
+		},
+		primitive = {
+			topology = .TriangleList,
+			frontFace = .CCW,
+			cullMode = .None,
+		},
+		multisample = {count = 1, mask = 0xFFFFFFFF},
+	})
+}
+
+@(private)
+render_items :: proc(
+	encoder: wgpu.RenderPassEncoder,
+	items: []RenderItem,
+	ignore_pipeline: bool = false,
+	camera_only: bool = true,
+) {
+	prev_pipeline: wgpu.RenderPipeline
+	instance_idx: u32
+	for item in items {
+		item_instance_idx := instance_idx
+		if item.should_use_instance {
+			instance_idx += 1
+		}
+
+		if camera_only && !item.visible_in_camera {
+			continue
+		}
+
+		if item.material.pipeline != prev_pipeline && !ignore_pipeline {
+			wgpu.RenderPassEncoderSetPipeline(encoder, item.material.pipeline)
+			prev_pipeline = item.material.pipeline
+		}
+		wgpu.RenderPassEncoderSetVertexBuffer(
+			encoder,
+			0,
+			item.mesh.vertex_buffer,
+			0,
+			u64(size_of(Vertex) * item.mesh.vertex_count),
+		)
+		wgpu.RenderPassEncoderSetIndexBuffer(
+			encoder,
+			item.mesh.index_buffer,
+			.Uint16,
+			0,
+			u64(size_of(u16) * item.mesh.index_count),
+		)
+		wgpu.RenderPassEncoderDrawIndexed(
+			encoder,
+			indexCount = item.mesh.index_count,
+			instanceCount = 1,
+			firstIndex = 0,
+			baseVertex = 0,
+			firstInstance = item_instance_idx,
+		)
 	}
 }

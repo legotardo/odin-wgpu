@@ -7,13 +7,17 @@ import "../ecs"
 import "../renderer"
 import "../constants"
 
-game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
+game_get_render_items :: proc(
+	state: ^GameState,
+	shadow_view_proj: linalg.Matrix4f32,
+) -> []renderer.RenderItem {
 	items := make([dynamic]renderer.RenderItem)
 	required_mask := ecs.ComponentMask{.TransformComponent, .RenderComponent}
 	chunk_mask := ecs.ComponentMask{.ChunkComponent}
 
 	cam_matrix := game_get_camera_matrix(state)
-	frustum := frustum_extract(cam_matrix)
+	camera_frustum := frustum_extract(cam_matrix)
+	shadow_frustum := frustum_extract(shadow_view_proj)
 
 	chunk_aabb := AABB{
 		min = {0, 0, 0},
@@ -40,7 +44,9 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 			world_aabb = aabb_transform(AABB{min = {-1, -1, -1}, max = {1, 1, 1}}, m)
 		}
 
-		if !aabb_in_frustum(world_aabb, frustum) do continue
+		visible_in_camera := aabb_in_frustum(world_aabb, camera_frustum)
+		visible_in_shadow := aabb_in_frustum(world_aabb, shadow_frustum)
+		if !visible_in_camera && !visible_in_shadow do continue
 
 		mesh_ptr := assets_get_mesh(&state.assets, MeshHandle(r.mesh))
 
@@ -51,7 +57,13 @@ game_get_render_items :: proc(state: ^GameState) -> []renderer.RenderItem {
 
 		if mesh_ptr == nil || mat_ptr == nil do continue
 
-		append(&items, renderer.RenderItem{mesh = mesh_ptr, material = mat_ptr, transform = m, should_use_instance = !r.ignore_instancing})
+		append(&items, renderer.RenderItem{
+			mesh = mesh_ptr,
+			material = mat_ptr,
+			transform = m,
+			should_use_instance = !r.ignore_instancing,
+			visible_in_camera = visible_in_camera,
+		})
 	}
 
 	return items[:]
@@ -114,85 +126,97 @@ game_calculate_sun :: proc(
 		math.sin(sun_angle),
 		-0.3,
 	})
-	
-	sun_height := sun_dir.y
-	
-	light_dir := sun_dir
-	if sun_height < 0.0 {
-		light_dir = -sun_dir
-	}
-	
-	norm_dir := linalg.vector_normalize(light_dir)
-	
-	ortho_size: f32 = 100.0
-	resolution: f32 = 8192.0
-	texel_size := (ortho_size * 2.0) / resolution
 
+	sun_height := sun_dir.y
+
+	min_elevation_rad: f32 = 10.0 * math.PI / 180.0
+	min_height := math.sin(min_elevation_rad)
+
+	shadow_dir := sun_dir
+	if shadow_dir.y < min_height {
+		shadow_dir.y = min_height
+		shadow_dir = linalg.vector_normalize(shadow_dir)
+	}
+
+	norm_dir := shadow_dir
+
+	ortho_size := constants.SHADOW_ORTHO_HALF_SIZE
+	resolution := f32(constants.SHADOW_MAP_SIZE)
+	texel_size := (ortho_size * 2.0) / resolution
 	forward := -norm_dir
 	up_ref := linalg.Vector3f32{0.0, 1.0, 0.0}
-	
+
 	right := linalg.vector_normalize(linalg.vector_cross(up_ref, forward))
 	up := linalg.vector_normalize(linalg.vector_cross(forward, right))
-
 	proj_x := linalg.vector_dot(player_pos, right)
 	proj_y := linalg.vector_dot(player_pos, up)
-
 	snapped_x := math.floor(proj_x / texel_size) * texel_size
 	snapped_y := math.floor(proj_y / texel_size) * texel_size
-
 	dx := snapped_x - proj_x
 	dy := snapped_y - proj_y
-
 	snapped_target := player_pos + (right * dx) + (up * dy)
 	sun_pos := snapped_target + (norm_dir * 500.0)
-	
-	view_matrix := linalg.matrix4_look_at_f32(sun_pos, snapped_target, {0.0, 1.0, 0.0})
 
-	near: f32 = 0.1
-	far: f32 = 1000.0
+	view := linalg.matrix4_look_at_f32(sun_pos, snapped_target, up)
+	projection := matrix_ortho3d_f32_d3d(
+		-ortho_size, ortho_size, -ortho_size, ortho_size,
+		0.1, 1000.0
+	)
 
-	proj_matrix := linalg.MATRIX4F32_IDENTITY
-	proj_matrix[0, 0] = 1.0 / ortho_size
-	proj_matrix[1, 1] = 1.0 / ortho_size
-	proj_matrix[2, 2] = 1.0 / (near - far)
-	proj_matrix[2, 3] = near / (near - far)
-
-	sunset_color := linalg.Vector3f32{0.95, 0.40, 0.15}
-	night_zenith := linalg.Vector3f32{0.02, 0.02, 0.08}
-	night_horizon := linalg.Vector3f32{0.08, 0.08, 0.18}
+	day_zenith := linalg.Vector3f32{0.15, 0.45, 0.85}
+	day_horizon := linalg.Vector3f32{0.55, 0.75, 0.95}
 
 	cs_world := f32(constants.CHUNK_SIZE) * constants.BLOCK_SIZE
-	player_cx := i32(math.floor(player_pos.x / cs_world))
-	player_cy := i32(math.floor(player_pos.y / cs_world))
-	player_cz := i32(math.floor(player_pos.z / cs_world))
-	chunk_idx := world_get_chunk_at(state.world, {player_cx, player_cy, player_cz})
-	chunk := chunk_idx != -1 ? &state.world.chunks[chunk_idx] : nil
-	biome := chunk != nil ? chunk.primary_biome : nil
-
-	current_zenith: linalg.Vector3f32 = {0.15, 0.45, 0.85}
-	current_horizon: linalg.Vector3f32 = {0.55, 0.75, 0.95}
-
-	if biome != nil {
-		current_zenith = biome.zenith_day
-		current_horizon = biome.horizon_day
+	player_chunk := [3]i32{
+		i32(math.floor(player_pos.x / cs_world)),
+		i32(math.floor(player_pos.y / cs_world)),
+		i32(math.floor(player_pos.z / cs_world)),
+	}
+	chunk_idx := world_get_chunk_at(state.world, player_chunk)
+	if chunk_idx >= 0 {
+		biome := state.world.chunks[chunk_idx].primary_biome
+		if biome != nil {
+			day_zenith = biome.zenith_day
+			day_horizon = biome.horizon_day
+		}
 	}
 
-	if sun_height > 0.2 {
-	} else if sun_height > -0.1 {
-		t := (sun_height - (-0.1)) / 0.3
-		current_zenith = linalg.lerp(sunset_color, current_zenith, t)
-		current_horizon = linalg.lerp(sunset_color, current_horizon, t)
-	} else {
-		t := clamp((sun_height - (-0.5)) / 0.4, 0.0, 1.0)
-		current_zenith = linalg.lerp(night_zenith, sunset_color, t)
-		current_horizon = linalg.lerp(night_horizon, sunset_color, t)
-	}
+	night_zenith := linalg.Vector3f32{0.006, 0.010, 0.030}
+	night_horizon := linalg.Vector3f32{0.015, 0.025, 0.060}
+	twilight_zenith := linalg.Vector3f32{0.10, 0.12, 0.24}
+	twilight_horizon := linalg.Vector3f32{0.90, 0.30, 0.08}
+
+	day_blend := game_smoothstep(-0.12, 0.22, sun_height)
+	twilight_rise := game_smoothstep(-0.32, -0.02, sun_height)
+	twilight_fall := 1.0 - game_smoothstep(0.08, 0.38, sun_height)
+	twilight_blend := twilight_rise * twilight_fall
+
+	current_zenith := linalg.lerp(night_zenith, day_zenith, day_blend)
+	current_horizon := linalg.lerp(night_horizon, day_horizon, day_blend)
+	current_zenith = linalg.lerp(current_zenith, twilight_zenith, twilight_blend * 0.65)
+	current_horizon = linalg.lerp(current_horizon, twilight_horizon, twilight_blend * 0.85)
 
 	return {
-		view_proj = proj_matrix * view_matrix,
-		direction = {norm_dir.x, norm_dir.y, norm_dir.z, sun_height},
-		sky_zenith = {current_zenith.x, current_zenith.y, current_zenith.z, 1.0},
+		direction = {sun_dir.x, sun_dir.y, sun_dir.z, sun_height},
+		view_proj = projection * view,
 		sky_horizon = {current_horizon.x, current_horizon.y, current_horizon.z, 1.0},
+		sky_zenith = {current_zenith.x, current_zenith.y, current_zenith.z, 1.0},
+	}
+}
+
+game_smoothstep :: proc "contextless" (edge0, edge1, x: f32) -> f32 {
+	t := clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+	return t * t * (3.0 - 2.0 * t)
+}
+
+matrix_ortho3d_f32_d3d :: proc "contextless" (left, right, bottom, top, near, far: f32) -> linalg.Matrix4f32 #no_bounds_check {
+	// https://learn.microsoft.com/en-us/windows/win32/direct3d9/d3dxmatrixorthooffcenterlh#remarks
+	// linalg library uses OpenGL standard (-1.0, 1.0) but wgpu uses DirectX (0.0, 1.0)
+	return {
+		+2 / (right - left), 0, 0, 0,
+		0, +2 / (top - bottom), 0, 0,
+		0, 0, +1 / (near - far),   0,
+		(left + right) / (left - right), (top + bottom) / (bottom - top), near / (near - far), 1
 	}
 }
 

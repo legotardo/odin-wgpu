@@ -21,6 +21,8 @@ state: struct {
 main :: proc() {
 	state.ctx = context
 
+	platform.watch_file_init()
+
 	state.window = platform.create_window()
 	wgpu_init(&state.window)
 }

@@ -203,3 +203,52 @@ cursor_pos_callback :: proc "c" (handle: glfw.WindowHandle, xpos, ypos: f64) {
 get_num_cores :: proc() -> int {
     return os.get_processor_core_count()
 }
+
+WatchFileProc :: #type proc(data: rawptr)
+
+WatchFile :: struct {
+	path: string,
+	time: time.Time,
+	call: WatchFileProc,
+	data: rawptr,
+}
+
+watch_files: [dynamic]WatchFile
+
+watch_file_init :: proc() {
+	watch_files = make([dynamic]WatchFile)
+}
+
+watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) {
+    append(&watch_files, WatchFile{
+        path = path,
+        time = {},
+        call = call,
+		data = data,
+    })
+}
+
+WATCH_FILE_INTERVAL :: 1.0 / 20
+watch_file_accumulator: f32 = 0.0
+watch_file_update :: proc() {
+	for &file in watch_files {
+		last_info, err := os.stat(file.path, context.temp_allocator)
+		if err != os.ERROR_NONE {
+			fmt.eprintf("Error reading file info:", err)
+			return
+		}
+
+		curr_mtime := last_info.modification_time
+		os.file_info_delete(last_info, context.temp_allocator)
+
+		if file.time._nsec == 0 {
+			file.time = curr_mtime
+			continue
+		}
+
+		if curr_mtime != file.time {
+			file.time = curr_mtime
+			file.call(file.data)
+		}
+	}
+}

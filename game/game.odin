@@ -1,5 +1,6 @@
 package game
 
+import "core:math"
 import "core:thread"
 
 import "../ecs"
@@ -148,7 +149,12 @@ game_update :: proc(state: ^GameState, dt: f32) {
 
 	if (input.is_key_pressed(&state.input, .L)) {
 		state.day_time += 2 * dt
+		if state.day_time >= 2 * math.PI {
+			state.day_time -= 2 * math.PI
+		}
 	}
+
+	platform.watch_file_update()
 }
 
 game_destroy :: proc(state: ^GameState) {

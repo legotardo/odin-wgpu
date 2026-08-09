@@ -46,6 +46,49 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 @group(0) @binding(7) var shadow_map: texture_depth_2d;
 @group(0) @binding(8) var shadow_sampler: sampler_comparison;
 
+const SHADOW_MAP_SIZE: f32 = 4096.0;
+const SHADOW_STRENGTH: f32 = 0.50;
+const AMBIENT_SKY_TINT: f32 = 0.10;
+
+fn sample_shadow(world_position: vec3<f32>, n_dot_l: f32) -> f32 {
+    let sun_pos = sun.view_proj * vec4<f32>(world_position, 1.0);
+    let sun_ndc = sun_pos.xyz / sun_pos.w;
+    let shadow_uv = vec2<f32>(
+        sun_ndc.x * 0.5 + 0.5,
+        sun_ndc.y * -0.5 + 0.5,
+    );
+
+    if (shadow_uv.x < 0.0 || shadow_uv.x > 1.0 ||
+        shadow_uv.y < 0.0 || shadow_uv.y > 1.0 ||
+        sun_ndc.z < 0.0 || sun_ndc.z > 1.0) {
+        return 1.0;
+    }
+
+    let receiver_bias = mix(0.000035, 0.00020, 1.0 - n_dot_l);
+    let texel_size = 1.0 / SHADOW_MAP_SIZE;
+    var visibility = 0.0;
+
+    for (var y: i32 = -1; y <= 1; y += 1) {
+        for (var x: i32 = -1; x <= 1; x += 1) {
+            let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
+            visibility += textureSampleCompare(
+                shadow_map,
+                shadow_sampler,
+                shadow_uv + offset,
+                sun_ndc.z - receiver_bias,
+            );
+        }
+    }
+
+    visibility /= 9.0;
+
+    let edge_distance = min(
+        min(shadow_uv.x, 1.0 - shadow_uv.x),
+        min(shadow_uv.y, 1.0 - shadow_uv.y),
+    );
+    return mix(1.0, visibility, smoothstep(0.0, 0.02, edge_distance));
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let albedo = textureSample(g_albedo, g_sampler, in.uv).rgb;
@@ -74,44 +117,34 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let world_unprojected = camera.view_proj_inv * ndc_pos;
     let world_position = world_unprojected.xyz / world_unprojected.w;
 
-    let sun_pos = sun.view_proj * vec4<f32>(world_position, 1.0);
-    let sun_ndc = sun_pos.xyz / sun_pos.w;
-
-    let shadow_uv = vec2<f32>(
-        sun_ndc.x * 0.5 + 0.5,
-        sun_ndc.y * -0.5 + 0.5,
-    );
-
-    var shadow_factor = 1.0;
-    if (shadow_uv.x >= 0.0 && shadow_uv.x <= 1.0 &&
-        shadow_uv.y >= 0.0 && shadow_uv.y <= 1.0 &&
-        sun_ndc.z >= 0.0 && sun_ndc.z <= 1.0) {
-
-        shadow_factor = 0.0;
-        let texel_size = 1.0 / 8192.0;
-        let bias = 0.0005;
-        for (var y: i32 = -1; y <= 1; y += 1) {
-            for (var x: i32 = -1; x <= 1; x += 1) {
-                let offset = vec2<f32>(f32(x), f32(y)) * texel_size;
-                shadow_factor += textureSampleCompare(shadow_map, shadow_sampler, shadow_uv + offset, sun_ndc.z - bias);
-            }
-        }
-        shadow_factor /= 9.0;
-    }
-
     let sun_height = sun.direction.w;
-    let ambient_color = albedo * sky_horizon * 0.6;
-    
-    var dir_color = vec3<f32>(0.0);
-    if (sun_height > 0.0) {
-        let day_intensity = clamp(sun_height * 4.0, 0.0, 1.0);
-        dir_color = albedo * mix(sky_horizon, vec3<f32>(1.0, 1.0, 0.95), day_intensity);
-    } else {
-        let night_intensity = clamp(abs(sun_height) * 2.0, 0.0, 1.0);
-        dir_color = albedo * mix(sky_horizon, vec3<f32>(0.15, 0.25, 0.45), night_intensity);
+    let daylight = smoothstep(-0.08, 0.25, sun_height);
+    let direct_intensity = smoothstep(0.0, 0.16, sun_height);
+    var world_normal = vec3<f32>(0.0, 1.0, 0.0);
+    if (dot(normal, normal) > 0.001) {
+        world_normal = normalize(normal);
+    }
+    let light_direction = normalize(sun.direction.xyz);
+    let n_dot_l = max(dot(world_normal, light_direction), 0.0);
+
+    var shadow_visibility = 1.0;
+    if (direct_intensity > 0.001 && n_dot_l > 0.0) {
+        let sampled_visibility = sample_shadow(world_position, n_dot_l);
+        shadow_visibility = mix(1.0, sampled_visibility, SHADOW_STRENGTH);
     }
 
-    let lit_albedo = mix(ambient_color, dir_color, shadow_factor);
+    let sky_ambient = mix(sky_horizon, sky_zenith, 0.35) * 0.58;
+    let ambient_day = mix(vec3<f32>(0.52), sky_ambient, AMBIENT_SKY_TINT);
+    let ambient_night = vec3<f32>(0.08, 0.08, 0.035);
+    let ambient_light = mix(ambient_night, ambient_day, daylight);
+
+    let warm_sun = vec3<f32>(1.0, 0.32, 0.08);
+    let noon_sun = vec3<f32>(1.0, 0.97, 0.88);
+    let sun_color = mix(warm_sun, noon_sun, smoothstep(0.02, 0.35, sun_height));
+
+    let ambient_color = albedo * ambient_light;
+    let direct_color = albedo * sun_color * n_dot_l * direct_intensity * shadow_visibility;
+    let lit_albedo = ambient_color + direct_color;
     
     let dist = length(camera.position - world_position);
     let fog_start = f32(render_config.render_distance * 9);

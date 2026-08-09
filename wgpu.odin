@@ -87,6 +87,8 @@ wgpu_init :: proc(window: ^platform.Window) {
 		state.game_state = game.game_init(&state.renderer, &state.window, mu_ctx)
 		renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_palette_buffer, &state.game_state.palette.colors)
 
+		renderer.renderer_watch_files(&state.renderer, &state.config)
+
 		platform.prepare_context(&state.window)
 	}
 
@@ -132,7 +134,7 @@ update :: proc(dt: f32) {
 	sun_uniform := game.game_calculate_sun(&state.game_state, cam_pos)
 	renderer.write_buffer_2(&state.renderer.renderer_manager, state.renderer.h_sun_buffer, &sun_uniform)
 
-	game_items_to_draw := game.game_get_render_items(&state.game_state)
+	game_items_to_draw := game.game_get_render_items(&state.game_state, sun_uniform.view_proj)
 	renderer.renderer_draw(&state.renderer, view, game_items_to_draw)
 
 	wgpu.SurfacePresent(state.surface)
