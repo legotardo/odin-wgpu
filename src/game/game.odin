@@ -9,12 +9,12 @@ import "../renderer"
 
 import mu "vendor:microui"
 
-default_shader_src := #load("../assets/shaders/default.wgsl")
-chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
+default_shader_src := #load("../../assets/shaders/default.wgsl")
+chunk_shader_src := #load("../../assets/shaders/chunk.wgsl")
 
-teapot_vox := #load("../assets/objects/teapot.vox")
-cactus_vox := #load("../assets/objects/cactus.vox")
-test_vox := #load("../assets/objects/test.vox")
+teapot_vox := #load("../../assets/objects/teapot.vox")
+cactus_vox := #load("../../assets/objects/cactus.vox")
+test_vox := #load("../../assets/objects/test.vox")
 
 GameState :: struct {
 	assets:   Assets,

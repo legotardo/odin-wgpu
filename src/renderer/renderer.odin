@@ -12,6 +12,7 @@ Renderer :: struct {
 	queue:         wgpu.Queue,
 	window: ^platform.Window,
 	renderer_manager: RendererManager,
+	ui: UIState,
 	use_wireframe: bool,
 	microui_ctx: ^mu.Context,
 	total_vertex_count: u64, // Used for debug
@@ -74,6 +75,7 @@ renderer_init :: proc(
 	r.queue = queue
 	r.window = window
 	r.renderer_manager = renderer_manager_init(device, queue)
+	r.ui = ui_init(window)
 
 	r.h_camera_buffer = create_buffer(&r.renderer_manager, &{
 		label = "camera buffer",
@@ -567,6 +569,7 @@ renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
 }
 
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
+	ui_resize(&r.ui, s_config.width, s_config.height)
 	recreate_depth_buffer(r, s_config.width, s_config.height)
 	recreate_gbuffer(r, s_config.width, s_config.height)
 	recreate_lighting_bind_group(r)
@@ -589,6 +592,7 @@ renderer_watch_files :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration)
 }
 
 renderer_destroy :: proc(r: ^Renderer) {
+	ui_destroy(&r.ui)
 	renderer_manager_destroy(&r.renderer_manager)
 
 	wgpu.DeviceRelease(r.device)

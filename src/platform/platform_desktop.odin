@@ -216,10 +216,14 @@ WatchFile :: struct {
 watch_files: [dynamic]WatchFile
 
 watch_file_init :: proc() {
+	if !ODIN_DEBUG do return
+
 	watch_files = make([dynamic]WatchFile)
 }
 
 watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) {
+	if !ODIN_DEBUG do return
+
     append(&watch_files, WatchFile{
         path = path,
         time = {},
@@ -231,6 +235,8 @@ watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) {
 WATCH_FILE_INTERVAL :: 1.0 / 20
 watch_file_accumulator: f32 = 0.0
 watch_file_update :: proc() {
+	if !ODIN_DEBUG do return
+
 	for &file in watch_files {
 		last_info, err := os.stat(file.path, context.temp_allocator)
 		if err != os.ERROR_NONE {

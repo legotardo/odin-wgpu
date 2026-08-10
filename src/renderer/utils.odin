@@ -5,8 +5,8 @@ import "core:os"
 import "core:math/linalg"
 import "vendor:wgpu"
 
-lighting_shader_src := #load("../assets/shaders/lighting.wgsl")
-shadow_shader_src := #load("../assets/shaders/shadow.wgsl")
+lighting_shader_src := #load("../../assets/shaders/lighting.wgsl")
+shadow_shader_src := #load("../../assets/shaders/shadow.wgsl")
 
 CameraUniform :: struct {
 	view_proj: linalg.Matrix4f32,
@@ -186,11 +186,13 @@ recreate_shadow_pipeline :: proc(r: ^Renderer) {
 @(private)
 recreate_lighting_pipeline :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
 	// TODO: This will not work on wasm
-	lighting_shader_src, err := os.read_entire_file_from_path("./assets/shaders/lighting.wgsl", context.allocator)
-	defer delete(lighting_shader_src)
-	if err != os.ERROR_NONE {
-		fmt.eprintf("Error reading file info:", err)
-		return
+	if ODIN_DEBUG {
+		lighting_shader_src, err := os.read_entire_file_from_path("./assets/shaders/lighting.wgsl", context.allocator)
+		defer delete(lighting_shader_src)
+		if err != os.ERROR_NONE {
+			fmt.eprintf("Error reading file info:", err)
+			return
+		}
 	}
 	lighting_shader := create_shader_module(&r.renderer_manager, string(lighting_shader_src))
 	defer delete_shader_module(lighting_shader)
