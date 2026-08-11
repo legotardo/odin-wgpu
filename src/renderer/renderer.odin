@@ -65,17 +65,18 @@ RenderItem :: struct {
 }
 
 renderer_init :: proc(
+	r: ^Renderer,
 	device: wgpu.Device,
 	queue: wgpu.Queue,
 	s_config: ^wgpu.SurfaceConfiguration,
 	window: ^platform.Window,
 	microui_ctx: ^mu.Context
-) -> (r: Renderer) {
+) {
 	r.device = device
 	r.queue = queue
 	r.window = window
 	r.renderer_manager = renderer_manager_init(device, queue)
-	r.ui = ui_init(window)
+	r.ui = ui_init(r, window)
 
 	r.h_camera_buffer = create_buffer(&r.renderer_manager, &{
 		label = "camera buffer",
@@ -411,19 +412,17 @@ renderer_init :: proc(
 		multisample = {count = 1, mask = 0xFFFFFFFF},
 	})
 
-	recreate_shadow_pipeline(&r)
-	recreate_lighting_pipeline(&r, s_config)
+	recreate_shadow_pipeline(r)
+	recreate_lighting_pipeline(r, s_config)
 
-	recreate_depth_buffer(&r, s_config.width, s_config.height)
-	recreate_gbuffer(&r, s_config.width, s_config.height)
-	recreate_lighting_bind_group(&r)
+	recreate_depth_buffer(r, s_config.width, s_config.height)
+	recreate_gbuffer(r, s_config.width, s_config.height)
+	recreate_lighting_bind_group(r)
 
 	microui_update_atlas_texture(queue, get_texture(&r.renderer_manager, r.h_microui_atlas_texture))
 	microui_update_constant(queue, get_buffer(&r.renderer_manager, r.h_microui_constant_buffer), window)
 
 	r.microui_ctx = microui_ctx
-
-	return r
 }
 
 renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []RenderItem) {
@@ -534,7 +533,8 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 	wgpu.RenderPassEncoderSetBindGroup(lighting_pass, 0, get_bind_group(&r.renderer_manager, r.h_lighting_bind_group))
 	wgpu.RenderPassEncoderDraw(lighting_pass, 3, 1, 0, 0)
 
-	renderer_draw_microui(r, lighting_pass)
+	// renderer_draw_microui(r, lighting_pass)
+	renderer_draw_ui(r, lighting_pass)
 	
 	wgpu.RenderPassEncoderEnd(lighting_pass)
 	wgpu.RenderPassEncoderRelease(lighting_pass)
@@ -566,6 +566,11 @@ renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
 	wgpu.RenderPassEncoderDrawIndexed(encoder, u32(microui_state.buf_idx * 6), 1, 0, 0, 0)
 
 	microui_state.buf_idx = 0
+}
+
+@(private="file")
+renderer_draw_ui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
+	ui_draw(&r.ui)
 }
 
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {

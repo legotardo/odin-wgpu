@@ -6,5 +6,5 @@
         "**/*.code-search": true,
         "/libs/": true,
         "/build/": true,
-    }
+    },
 }

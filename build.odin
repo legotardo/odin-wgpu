@@ -37,8 +37,6 @@ main :: proc() {
 build_windows :: proc() {
     defer free_all(context.temp_allocator)
 
-    run_command({"git", "submodule", "update", "--init", "--recursive"})
-
     VCPKG_ROOT := os.get_env("VCPKG_ROOT", context.temp_allocator)
     CMAKE_BIN := os.get_env("CMAKE_BIN", context.temp_allocator)
 
@@ -74,6 +72,7 @@ build_windows :: proc() {
     copy_file(rmlui_release, "libpng16.dll", OUTPUT_DIR)
     copy_file(rmlui_release, "rmlui_c.dll", OUTPUT_DIR)
     copy_file(rmlui_release, "rmlui.dll", OUTPUT_DIR)
+    copy_file(rmlui_release, "rmlui_debugger.dll", OUTPUT_DIR)
     copy_file(rmlui_release, "z.dll", OUTPUT_DIR)
 }
 

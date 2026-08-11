@@ -1,0 +1,14 @@
+<rml>
+    <head>
+        <title>Demo</title>
+        <style>
+            body {
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+    </head>
+    <body>
+        <div style="width: 10px; height: 10px; background-color: #FF4400;"></div>
+    </body>
+</rml>
