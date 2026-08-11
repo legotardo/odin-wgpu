@@ -534,7 +534,7 @@ renderer_draw :: proc(r: ^Renderer, target_view: wgpu.TextureView, items: []Rend
 	wgpu.RenderPassEncoderDraw(lighting_pass, 3, 1, 0, 0)
 
 	// renderer_draw_microui(r, lighting_pass)
-	renderer_draw_ui(r, lighting_pass)
+	ui_draw(&r.ui, lighting_pass)
 	
 	wgpu.RenderPassEncoderEnd(lighting_pass)
 	wgpu.RenderPassEncoderRelease(lighting_pass)
@@ -566,11 +566,6 @@ renderer_draw_microui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
 	wgpu.RenderPassEncoderDrawIndexed(encoder, u32(microui_state.buf_idx * 6), 1, 0, 0, 0)
 
 	microui_state.buf_idx = 0
-}
-
-@(private="file")
-renderer_draw_ui :: proc(r: ^Renderer, encoder: wgpu.RenderPassEncoder) {
-	ui_draw(&r.ui)
 }
 
 renderer_resize :: proc(r: ^Renderer, s_config: ^wgpu.SurfaceConfiguration) {
