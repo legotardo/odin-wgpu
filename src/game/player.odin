@@ -36,6 +36,7 @@ spawn_player :: proc(state: ^GameState) {
 			znear = 0.1,
 		},
 	)
+	ecs.entity_add_health(state.world, player, { max_value = 100, value = 100 })
 
 	ecs.entity_disable_components(state.world, player, {.PhysicsComponent})
 

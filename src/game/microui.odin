@@ -26,7 +26,7 @@ microui_update :: proc(state: ^GameState, dt: f32) {
 
         text := fmt.aprintf(
 			"FPS = %d | avg = %.1f | 1%% low = %.1f | vertices = %d",
-			u32(1 / dt), avg_fps, low_1pct, state.renderer.total_vertex_count,
+			u32(1 / dt), avg_fps, low_1pct, state.r.total_vertex_count,
 		)
         defer delete(text)
         mu.label(ctx, text)

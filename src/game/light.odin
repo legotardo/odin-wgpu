@@ -27,7 +27,7 @@ system_update_lights :: proc(state: ^GameState) {
     //     })
 	// }
 
-    // renderer.renderer_update_light_buffer(state.renderer, gpu_lights[:])
+    // renderer.renderer_update_light_buffer(state.r, gpu_lights[:])
 }
 
 system_update_sun :: proc(state: ^GameState, dt: f32) {

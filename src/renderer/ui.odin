@@ -1,9 +1,9 @@
 package renderer
 
-import "core:text/regex/virtual_machine"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
+import "core:os"
 import "core:strings"
 import "core:time"
 import stb_image "vendor:stb/image"
@@ -23,7 +23,6 @@ UI_UNIFORM_STRIDE :: 256
 
 ui_start_tick: time.Tick
 
-demo_rml :: #load("../../assets/ui/demo.rml")
 ui_shader_src :: #load("../../assets/shaders/rmlui.wgsl")
 
 UIGeometry :: struct {
@@ -60,6 +59,18 @@ UIState :: struct {
 	ctx:              rmlui.Context,
 	initialized:      bool,
 	ui_renderer_data: ^UIRendererData,
+	documents:        [dynamic]^UIDocument,
+}
+
+UIDocument :: struct {
+	ui:            ^UIState,
+	handle:        rmlui.Document,
+	path:          string,
+	visible:       bool,
+	watch_handles: [dynamic]platform.WatchFileHandle,
+
+	data_models: [dynamic]rmlui.Data_Constructor,
+	data_handles: [dynamic]rmlui.Data_Handle,
 }
 
 ui_compile_geometry :: proc "c" (
@@ -440,6 +451,7 @@ ui_renderer_destroy :: proc(render_data: ^UIRendererData) {
 
 ui_init :: proc(r: ^Renderer, window: ^platform.Window) -> (state: UIState) {
 	ui_start_tick = time.tick_now()
+	state.documents = make([dynamic]^UIDocument)
 	state.ui_renderer_data = new(UIRendererData)
 	state.ui_renderer_data.r = r
 	ui_renderer_init(state.ui_renderer_data)
@@ -504,6 +516,11 @@ ui_resize :: proc(state: ^UIState, width, height: u32) {
 }
 
 ui_destroy :: proc(state: ^UIState) {
+	for document in state.documents {
+		if document != nil do ui_destroy_document(document)
+	}
+	delete(state.documents)
+	state.documents = nil
 	if state.ctx != nil {
 		rmlui.rmlui_debugger_shutdown()
 		rmlui.rmlui_context_remove(UI_CONTEXT_NAME)
@@ -523,4 +540,141 @@ ui_destroy :: proc(state: ^UIState) {
 	}
 	ui_renderer_destroy(state.ui_renderer_data)
 	state.ui_renderer_data = nil
+}
+
+@(private = "file")
+ui_create_document :: proc(state: ^UIState, data, source_url: string) -> rmlui.Document {
+	c_data := strings.clone_to_cstring(data)
+	defer delete(c_data)
+	c_source_url := strings.clone_to_cstring(source_url)
+	defer delete(c_source_url)
+	return rmlui.rmlui_context_load_document_from_memory(state.ctx, c_data, c_source_url)
+}
+
+@(private = "file")
+ui_document_watch_callback :: proc(data: rawptr) {
+	document := cast(^UIDocument)data
+	if document != nil do ui_reload_document(document)
+}
+
+ui_watch_document_file :: proc(document: ^UIDocument, path: string) {
+	if document == nil do return
+	handle := platform.watch_file(path, ui_document_watch_callback, document)
+	if handle != platform.WATCH_FILE_INVALID {
+		append(&document.watch_handles, handle)
+	}
+}
+
+ui_load_document :: proc(
+	state: ^UIState,
+	path: string,
+	embedded_data: []u8,
+	dependencies: ..string,
+) -> ^UIDocument {
+	if state == nil || state.ctx == nil do return nil
+
+	source := string(embedded_data)
+	file_data: []u8
+	if ODIN_DEBUG {
+		data, err := os.read_entire_file_from_path(path, context.temp_allocator)
+		if err == os.ERROR_NONE {
+			file_data = data
+			source = string(file_data)
+		} else {
+			fmt.eprintf("Failed to read RmlUi document %s: %v\n", path, err)
+		}
+	}
+
+	handle := ui_create_document(state, source, path)
+	if handle == nil {
+		fmt.eprintf("Failed to load RmlUi document %s\n", path)
+		return nil
+	}
+
+	document := new(UIDocument)
+	document.ui = state
+	document.handle = handle
+	document.path = strings.clone(path)
+	document.watch_handles = make([dynamic]platform.WatchFileHandle)
+	document.data_models = make([dynamic]rmlui.Data_Constructor)
+	document.data_handles = make([dynamic]rmlui.Data_Handle)
+	append(&state.documents, document)
+
+	ui_watch_document_file(document, path)
+	for dependency in dependencies {
+		ui_watch_document_file(document, dependency)
+	}
+	return document
+}
+
+ui_reload_document :: proc(document: ^UIDocument) -> bool {
+	if document == nil || document.ui == nil || document.ui.ctx == nil do return false
+
+	data, err := os.read_entire_file_from_path(document.path, context.temp_allocator)
+	if err != os.ERROR_NONE {
+		fmt.eprintf("Failed to reload RmlUi document %s: %v\n", document.path, err)
+		return false
+	}
+
+	new_handle := ui_create_document(document.ui, string(data), document.path)
+	if new_handle == nil {
+		fmt.eprintf("Failed to reload RmlUi document %s, keeping the previous version\n", document.path)
+		return false
+	}
+
+	old_handle := document.handle
+	document.handle = new_handle
+	if document.visible do rmlui.rmlui_document_show(new_handle)
+	if old_handle != nil {
+		rmlui.rmlui_context_unload_document(document.ui.ctx, old_handle)
+	}
+	fmt.printf("Reloaded RmlUi document %s\n", document.path)
+	return true
+}
+
+ui_show :: proc(document: ^UIDocument) {
+	if document == nil || document.handle == nil do return
+	document.visible = true
+	rmlui.rmlui_document_show(document.handle)
+}
+
+ui_hide :: proc(document: ^UIDocument) {
+	if document == nil || document.handle == nil do return
+	document.visible = false
+	rmlui.rmlui_document_hide(document.handle)
+}
+
+ui_destroy_document :: proc(document: ^UIDocument) {
+	if document == nil do return
+
+	for handle in document.watch_handles {
+		platform.unwatch_file(handle)
+	}
+	delete(document.watch_handles)
+
+	for handle in document.data_handles {
+		rmlui.rmlui_data_handle_destroy(handle)
+	}
+	delete(document.data_handles)
+
+	for model in document.data_models {
+		rmlui.rmlui_data_model_destroy_constructor(model)
+	}
+	delete(document.data_models)
+
+	if document.handle != nil && document.ui != nil && document.ui.ctx != nil {
+		rmlui.rmlui_context_unload_document(document.ui.ctx, document.handle)
+		document.handle = nil
+	}
+	if document.ui != nil {
+		for &registered_document in document.ui.documents {
+			if registered_document == document {
+				registered_document = nil
+				break
+			}
+		}
+	}
+
+	delete(document.path)
+	free(document)
 }
