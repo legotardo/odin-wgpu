@@ -73,6 +73,58 @@ UIDocument :: struct {
 	data_handles: [dynamic]rmlui.Data_Handle,
 }
 
+@(private = "file")
+ui_data_type_from_type_info :: proc(info: ^runtime.Type_Info) -> (rmlui.Data_Type, bool) {
+	base_info := runtime.type_info_base(info)
+	switch base_info.id {
+	case typeid_of(bool):
+		return .Bool, true
+	case typeid_of(i32):
+		return .Int, true
+	case typeid_of(f32):
+		return .Float, true
+	case typeid_of(f64):
+		return .Double, true
+	case typeid_of(u16):
+		return .UInt16, true
+	}
+	return {}, false
+}
+
+ui_data_model_bind_struct :: proc(
+	constructor: rmlui.Data_Constructor,
+	type_name, binding_name: string,
+	value: ^$T,
+) -> bool {
+	if constructor == nil || value == nil do return false
+
+	info := runtime.type_info_base(type_info_of(T))
+	struct_info, ok := info.variant.(runtime.Type_Info_Struct)
+	if !ok do return false
+
+	c_type_name := strings.clone_to_cstring(type_name)
+	defer delete(c_type_name)
+	data_struct := rmlui.rmlui_data_model_register_struct(constructor, c_type_name)
+	if data_struct == nil do return false
+
+	for index in 0 ..< int(struct_info.field_count) {
+		data_type, supported := ui_data_type_from_type_info(struct_info.types[index])
+		if !supported {
+			fmt.eprintf("Unsupported RmlUi data type for field %s\n", struct_info.names[index])
+			return false
+		}
+
+		c_field_name := strings.clone_to_cstring(struct_info.names[index])
+		added := rmlui.rmlui_data_struct_add_member(data_struct, c_field_name, struct_info.offsets[index], data_type)
+		delete(c_field_name)
+		if !added do return false
+	}
+
+	c_binding_name := strings.clone_to_cstring(binding_name)
+	defer delete(c_binding_name)
+	return rmlui.rmlui_data_model_bind_struct(constructor, c_binding_name, data_struct, value)
+}
+
 ui_compile_geometry :: proc "c" (
 	user_data: rawptr,
 	vertices: [^]rmlui.Vertex,
@@ -605,6 +657,50 @@ ui_load_document :: proc(
 		ui_watch_document_file(document, dependency)
 	}
 	return document
+}
+
+ui_load_document_with_model :: proc(
+	state: ^UIState,
+	path: string,
+	embedded_data: []u8,
+	model_name, binding_name: string,
+	value: ^$T,
+	dependencies: ..string,
+) -> (document: ^UIDocument, model: rmlui.Data_Handle) {
+	if state == nil || state.ctx == nil || value == nil do return
+
+	c_model_name := strings.clone_to_cstring(model_name)
+	defer delete(c_model_name)
+	constructor := rmlui.rmlui_data_model_create(state.ctx, c_model_name)
+	if constructor == nil {
+		fmt.eprintf("Failed to create RmlUi data model %s\n", model_name)
+		return
+	}
+
+	type_name := strings.concatenate({model_name, "_", binding_name}, context.temp_allocator)
+	if !ui_data_model_bind_struct(constructor, type_name, binding_name, value) {
+		fmt.eprintf("Failed to bind RmlUi data model %s\n", model_name)
+		rmlui.rmlui_data_model_destroy_constructor(constructor)
+		return
+	}
+
+	model = rmlui.rmlui_data_model_get_handle(constructor)
+	if model == nil {
+		rmlui.rmlui_data_model_destroy_constructor(constructor)
+		return
+	}
+
+	document = ui_load_document(state, path, embedded_data, ..dependencies)
+	if document == nil {
+		rmlui.rmlui_data_handle_destroy(model)
+		rmlui.rmlui_data_model_destroy_constructor(constructor)
+		model = nil
+		return
+	}
+
+	append(&document.data_models, constructor)
+	append(&document.data_handles, model)
+	return
 }
 
 ui_reload_document :: proc(document: ^UIDocument) -> bool {
