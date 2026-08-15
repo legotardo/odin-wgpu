@@ -9,16 +9,16 @@ import "../renderer"
 
 import mu "vendor:microui"
 
-default_shader_src := #load("../assets/shaders/default.wgsl")
-chunk_shader_src := #load("../assets/shaders/chunk.wgsl")
+default_shader_src := #load("../../assets/shaders/default.wgsl")
+chunk_shader_src := #load("../../assets/shaders/chunk.wgsl")
 
-teapot_vox := #load("../assets/objects/teapot.vox")
-cactus_vox := #load("../assets/objects/cactus.vox")
-test_vox := #load("../assets/objects/test.vox")
+teapot_vox := #load("../../assets/objects/teapot.vox")
+cactus_vox := #load("../../assets/objects/cactus.vox")
+test_vox := #load("../../assets/objects/test.vox")
 
 GameState :: struct {
 	assets:   Assets,
-	renderer: ^renderer.Renderer,
+	r: ^renderer.Renderer,
 	input:    input.InputManager,
 	world:    ^ecs.World,
 	window:   ^platform.Window,
@@ -33,10 +33,12 @@ GameState :: struct {
 	last_player_cy: i32,
 	last_player_cz: i32,
 	day_time: f32,
+
+	ui_hud: ^renderer.UIDocument,
 }
 
 game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.Context) -> (state: GameState) {
-	state.renderer = r
+	state.r = r
 	state.mu_ctx = mu_ctx
 	state.window = window
 	state.assets = assets_init()
@@ -55,18 +57,18 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 		&state.assets,
 		"default",
 		renderer.material_create(
-			state.renderer,
+			state.r,
 			string(default_shader_src),
-			{state.renderer.h_global_bind_group_layout}
+			{state.r.h_global_bind_group_layout}
 		),
 	)
 	chunk_material := assets_register_material(
 		&state.assets,
 		"chunk",
 		renderer.material_create(
-			state.renderer,
+			state.r,
 			string(chunk_shader_src),
-			{state.renderer.h_global_bind_group_layout}
+			{state.r.h_global_bind_group_layout}
 		),
 	)
 
@@ -74,7 +76,7 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	quad_mesh := assets_register_mesh(
 		&state.assets,
 		"quad",
-		renderer.mesh_create(state.renderer, vertices, indices),
+		renderer.mesh_create(state.r, vertices, indices),
 	)
 	// assets
 
@@ -96,6 +98,9 @@ game_init :: proc(r: ^renderer.Renderer, window: ^platform.Window, mu_ctx: ^mu.C
 	ecs_dispatcher_add_frame(&state.dispatcher, system_physics)
 	ecs_dispatcher_add_frame(&state.dispatcher, system_update_player)
 
+	state.ui_hud = ui_hud_init(&state)
+	renderer.ui_show(state.ui_hud)
+
 	return state
 }
 
@@ -107,25 +112,25 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	ecs_dispatcher_update(&state.dispatcher, state, dt)
 
 	if (input.is_key_just_pressed(&state.input, .P)) {
-		state.renderer.use_wireframe = !state.renderer.use_wireframe
+		state.r.use_wireframe = !state.r.use_wireframe
 
 		// Pipeline needs to be created again to renderer in wireframe mode
 		assets_register_material(
 			&state.assets,
 			"chunk",
 			renderer.material_create(
-				state.renderer,
+				state.r,
 				string(chunk_shader_src),
-				{state.renderer.h_global_bind_group_layout}
+				{state.r.h_global_bind_group_layout}
 			),
 		)
 		assets_register_material(
 			&state.assets,
 			"default",
 			renderer.material_create(
-				state.renderer,
+				state.r,
 				string(default_shader_src),
-				{state.renderer.h_global_bind_group_layout}
+				{state.r.h_global_bind_group_layout}
 			),
 		)
 	}
@@ -147,6 +152,7 @@ game_update :: proc(state: ^GameState, dt: f32) {
 	input.input_update(&state.input)
 
 	microui_update(state, dt)
+	ui_hud_update(state, dt)
 
 	platform.watch_file_update()
 }

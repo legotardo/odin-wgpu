@@ -4,7 +4,7 @@ import "core:sync"
 import "core:thread"
 import "../constants"
 import "../ecs"
-import "../libs/fast_noise"
+import "../../libs/fast_noise"
 import "../shared"
 
 terrain_node := fast_noise.NewFromEncodedNodeTree("DQAH@BC@AIEAJBw@ABZEED0KV78YZmZmPwQDmpkZPwsAAIA/BA==", transmute(u32)~u32(0))

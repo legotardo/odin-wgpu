@@ -55,3 +55,8 @@ ColliderComponent :: struct {
 	size: linalg.Vector3f32,
 	offset: linalg.Vector3f32,
 }
+
+HealthComponent :: struct {
+	max_value: u16,
+	value: u16,
+}

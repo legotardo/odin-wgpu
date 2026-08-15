@@ -13,6 +13,7 @@ ComponentType :: enum {
 	LightComponent,
 	PhysicsComponent,
 	ColliderComponent,
+	HealthComponent,
 }
 
 ComponentMask :: bit_set[ComponentType]
@@ -24,14 +25,13 @@ World :: struct {
 	active_chunks:      [dynamic]u32,
 	masks:              [MAX_ENTITIES]ComponentMask,
 
-	// Components
 	transforms:         [MAX_ENTITIES]TransformComponent,
 	renders:            [MAX_ENTITIES]RenderComponent,
 	first_persons:      [MAX_ENTITIES]FirstPersonComponent,
 	chunks:             [MAX_ENTITIES]ChunkComponent,
-	// lights:             [MAX_ENTITIES]LightComponent,
 	physics:            [MAX_ENTITIES]PhysicsComponent,
 	colliders:          [MAX_ENTITIES]ColliderComponent,
+	healths:            [MAX_ENTITIES]HealthComponent,
 	cameras:            [1]CameraComponent,
 
 	chunk_map: map[[3]i32]int,
@@ -155,12 +155,6 @@ entity_add_chunk :: proc(w: ^World, e: Entity, c: ChunkComponent) {
 	append(&w.active_chunks, idx)
 }
 
-// entity_add_light :: proc(w: ^World, e: Entity, c: LightComponent) {
-// 	idx := entity_index(e)
-// 	w.lights[idx] = c
-// 	w.masks[idx] += {.LightComponent}
-// }
-
 entity_add_physics :: proc(w: ^World, e: Entity, c: PhysicsComponent) {
 	idx := entity_index(e)
 	w.physics[idx] = c
@@ -171,4 +165,10 @@ entity_add_collider :: proc(w: ^World, e: Entity, c: ColliderComponent) {
 	idx := entity_index(e)
 	w.colliders[idx] = c
 	w.masks[idx] += {.ColliderComponent}
+}
+
+entity_add_health :: proc(w: ^World, e: Entity, c: HealthComponent) {
+	idx := entity_index(e)
+	w.healths[idx] = c
+	w.masks[idx] += {.HealthComponent}
 }

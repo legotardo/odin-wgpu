@@ -7,7 +7,7 @@ import mu "vendor:microui"
 
 import "../platform"
 
-microui_shader_src := #load("../assets/shaders/microui.wgsl")
+microui_shader_src := #load("../../assets/shaders/microui.wgsl")
 
 BUFFER_SIZE :: 16384
 

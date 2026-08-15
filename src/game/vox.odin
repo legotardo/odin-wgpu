@@ -1,6 +1,6 @@
 package game
 
-import "../libs/vox"
+import "../../libs/vox"
 import "../constants"
 import "../shared"
 

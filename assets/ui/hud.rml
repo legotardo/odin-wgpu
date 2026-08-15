@@ -1,0 +1,93 @@
+<rml>
+    <head>
+        <style>
+            body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                font-family: Roboto;
+                color: #FFFFFF;
+            }
+
+            .player-stats {
+                position: absolute;
+                left: 0;
+                bottom: 0;
+                width: 100%;
+                padding: 32px;
+                font-size: 24px;
+                border-radius: 12px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 12px
+            }
+
+            .stats-bars {
+                display: flex;
+                flex-direction: row;
+                gap: 8px;
+            }
+
+            .bar {
+                width: 200px;
+                height: 16px;
+                background-color: #282828;
+                border-radius: 8px;
+                display: flex;
+                border: 2px;
+                border-color: #282828;
+            }
+
+            .health-bar .inner {
+                width: 50%;
+                height: 100%;
+                background-color: #EC201F;
+                /* decorator: linear-gradient(to top, #F40, #FFF); */
+                border-radius: 7px;
+            }
+
+            .mana-bar .inner {
+                width: 50%;
+                height: 100%;
+                background-color: #1f60ec;
+                /* decorator: linear-gradient(to top, #F40, #FFF); */
+                border-radius: 7px;
+            }
+
+            .slots {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .slot {
+                width: 64px;
+                height: 64px;
+                background-color: #282828;
+                border-radius: 12px;
+            }
+        </style>
+    </head>
+    <body data-model="ui_hud">
+        <div class="player-stats">
+            <div class="stats-bars">
+                <div class="bar health-bar">
+                    <div class="inner" data-style-width="player.player_health + '%'"></div>
+                </div>
+                <div class="bar mana-bar">
+                    <div class="inner"></div>
+                </div>
+            </div>
+            <div class="slots">
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+                <div class="slot"></div>
+            </div>
+        </div>
+    </body>
+</rml>

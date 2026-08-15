@@ -20,7 +20,7 @@ struct RenderConfig {
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
-};
+}
 
 @vertex
 fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
@@ -47,8 +47,9 @@ fn vs_main(@builtin(vertex_index) in_vertex_index: u32) -> VertexOutput {
 @group(0) @binding(8) var shadow_sampler: sampler_comparison;
 
 const SHADOW_MAP_SIZE: f32 = 4096.0;
-const SHADOW_STRENGTH: f32 = 0.30;
+const SHADOW_STRENGTH: f32 = 0.40;
 const AMBIENT_SKY_TINT: f32 = 0.10;
+const SIDE_LIGHT_FLOOR: f32 = 0.65;
 
 fn sample_shadow(world_position: vec3<f32>, n_dot_l: f32) -> f32 {
     let sun_pos = sun.view_proj * vec4<f32>(world_position, 1.0);
@@ -130,6 +131,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     let light_direction = normalize(sun.direction.xyz);
     let n_dot_l = max(dot(world_normal, light_direction), 0.0);
+    let side_weight = 1.0 - abs(world_normal.y);
+    let diffuse = max(n_dot_l, side_weight * SIDE_LIGHT_FLOOR);
 
     var shadow_visibility = 1.0;
     if (direct_intensity > 0.001 && n_dot_l > 0.0) {
@@ -147,7 +150,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let sun_color = mix(warm_sun, noon_sun, smoothstep(0.02, 0.35, sun_height));
 
     let ambient_color = albedo * ambient_light;
-    let direct_color = albedo * sun_color * n_dot_l * direct_intensity * shadow_visibility;
+    let direct_color = albedo * sun_color * diffuse * direct_intensity * shadow_visibility;
     let lit_albedo = ambient_color + direct_color;
     
     let dist = length(camera.position - world_position);

@@ -6,6 +6,7 @@ import "../input"
 import "base:runtime"
 import "core:c"
 import "core:fmt"
+import "core:strings"
 import "core:time"
 import "vendor:glfw"
 import "vendor:wgpu"
@@ -74,6 +75,7 @@ pool_events :: proc(window: ^Window) {
 }
 
 destroy_window :: proc(window: ^Window) {
+	watch_file_destroy()
 	glfw.DestroyWindow(window.handle)
 	glfw.Terminate()
 }
@@ -204,45 +206,80 @@ get_num_cores :: proc() -> int {
     return os.get_processor_core_count()
 }
 
-WatchFileProc :: #type proc(data: rawptr)
-
 WatchFile :: struct {
-	path: string,
-	time: time.Time,
-	call: WatchFileProc,
-	data: rawptr,
+	path:        string,
+	time:        time.Time,
+	call:        WatchFileProc,
+	data:        rawptr,
+	initialized: bool,
+	active:      bool,
 }
 
 watch_files: [dynamic]WatchFile
+watch_file_last_check: time.Tick
 
 watch_file_init :: proc() {
+	if !ODIN_DEBUG do return
+
 	watch_files = make([dynamic]WatchFile)
+	watch_file_last_check = time.tick_now()
 }
 
-watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) {
-    append(&watch_files, WatchFile{
-        path = path,
-        time = {},
-        call = call,
+watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) -> WatchFileHandle {
+	if !ODIN_DEBUG do return WATCH_FILE_INVALID
+
+	append(&watch_files, WatchFile{
+		path = strings.clone(path),
+		time = {},
+		call = call,
 		data = data,
-    })
+		active = true,
+	})
+	return WatchFileHandle(len(watch_files) - 1)
+}
+
+unwatch_file :: proc(handle: WatchFileHandle) {
+	if !ODIN_DEBUG || handle == WATCH_FILE_INVALID do return
+	index := int(handle)
+	if index < 0 || index >= len(watch_files) do return
+	file := &watch_files[index]
+	if !file.active do return
+	delete(file.path)
+	file.path = ""
+	file.call = nil
+	file.data = nil
+	file.active = false
+}
+
+watch_file_destroy :: proc() {
+	if !ODIN_DEBUG || watch_files == nil do return
+	for &file in watch_files {
+		if file.active do delete(file.path)
+	}
+	delete(watch_files)
+	watch_files = nil
 }
 
 WATCH_FILE_INTERVAL :: 1.0 / 20
-watch_file_accumulator: f32 = 0.0
 watch_file_update :: proc() {
+	if !ODIN_DEBUG do return
+	if time.duration_seconds(time.tick_since(watch_file_last_check)) < WATCH_FILE_INTERVAL do return
+	watch_file_last_check = time.tick_now()
+
 	for &file in watch_files {
+		if !file.active do continue
 		last_info, err := os.stat(file.path, context.temp_allocator)
 		if err != os.ERROR_NONE {
-			fmt.eprintf("Error reading file info:", err)
-			return
+			fmt.eprintf("Error reading file info for %s: %v\n", file.path, err)
+			continue
 		}
 
 		curr_mtime := last_info.modification_time
 		os.file_info_delete(last_info, context.temp_allocator)
 
-		if file.time._nsec == 0 {
+		if !file.initialized {
 			file.time = curr_mtime
+			file.initialized = true
 			continue
 		}
 

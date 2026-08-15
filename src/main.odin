@@ -1,4 +1,4 @@
-package main
+package src
 
 import "base:runtime"
 import "vendor:wgpu"

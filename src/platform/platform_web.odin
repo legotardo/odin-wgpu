@@ -48,6 +48,22 @@ pool_events :: proc(window: ^Window) {
 destroy_window :: proc(window: ^Window) {
 }
 
+watch_file_init :: proc() {
+}
+
+watch_file :: proc(path: string, call: WatchFileProc, data: rawptr) -> WatchFileHandle {
+	return WATCH_FILE_INVALID
+}
+
+unwatch_file :: proc(handle: WatchFileHandle) {
+}
+
+watch_file_update :: proc() {
+}
+
+watch_file_destroy :: proc() {
+}
+
 get_window_proc :: proc(window: ^Window) -> rawptr {
 	return window.handle
 }

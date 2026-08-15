@@ -8,10 +8,14 @@ Vertex :: struct {
 	material_id: u8,
 	normal_id: u8,
 	ao: f32,
+
+	// ui stuff
+	color: linalg.Vector4f32,
+	tex_coord: linalg.Vector2f32,
 }
 
 vertex_get_buffer_layout :: proc() -> wgpu.VertexBufferLayout {
-	@(static) attributes := [4]wgpu.VertexAttribute {
+	@(static) attributes := [6]wgpu.VertexAttribute {
 		{
 			offset         = u64(offset_of(Vertex, position)), //
 			shaderLocation = 0, //
@@ -31,6 +35,16 @@ vertex_get_buffer_layout :: proc() -> wgpu.VertexBufferLayout {
 			offset         = u64(offset_of(Vertex, ao)), //
 			shaderLocation = 3, //
 			format         = .Float32,
+		},
+		{
+			offset         = u64(offset_of(Vertex, color)), //
+			shaderLocation = 4, //
+			format         = .Float32x4,
+		},
+		{
+			offset         = u64(offset_of(Vertex, tex_coord)), //
+			shaderLocation = 5, //
+			format         = .Float32x2,
 		},
 	}
 
