@@ -12,7 +12,6 @@ ui_hud_player: struct {
 ui_hud_model: rmlui.Data_Handle
 
 ui_hud_init :: proc(state: ^GameState) -> ^renderer.UIDocument {
-	ui_hud_player.player_health = 30
 	doc, model := renderer.ui_load_document_with_model(
 		&state.r.ui,
 		"assets/ui/hud.rml",
@@ -26,5 +25,11 @@ ui_hud_init :: proc(state: ^GameState) -> ^renderer.UIDocument {
 }
 
 ui_hud_update :: proc(state: ^GameState, dt: f32) {
+	player_health := state.world.healths[state.player_idx]
 
+	new_player_health := (player_health.max_value / player_health.value) * 100
+	if ui_hud_player.player_health != new_player_health {
+		ui_hud_player.player_health = new_player_health
+		rmlui.rmlui_data_handle_dirty_variable(ui_hud_model, "player")
+	}
 }
