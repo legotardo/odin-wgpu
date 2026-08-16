@@ -86,8 +86,8 @@ game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
 	t, c, found := game_get_camera_components(state)
 	if !found do return linalg.MATRIX4F32_IDENTITY
 
-	eye_pos := t.position + c.offset
-	view := linalg.matrix4_look_at_f32(eye_pos, c.target + c.offset, c.up)
+	eye_pos := t.position + c.offset + c.visual_offset
+	view := linalg.matrix4_look_at_f32(eye_pos, c.target + c.offset + c.visual_offset, c.up)
 	proj := linalg.matrix4_perspective_f32(c.fovy, c.aspect, c.znear, c.zfar)
 
 	return proj * view
@@ -95,7 +95,7 @@ game_get_camera_matrix :: proc(state: ^GameState) -> linalg.Matrix4f32 {
 
 game_get_camera_eye :: proc(state: ^GameState) -> linalg.Vector3f32 {
 	t, c, found := game_get_camera_components(state)
-	if found do return t.position + c.offset
+	if found do return t.position + c.offset + c.visual_offset
 	return {}
 }
 

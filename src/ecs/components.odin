@@ -17,6 +17,7 @@ RenderComponent :: struct {
 
 CameraComponent :: struct {
 	offset: linalg.Vector3f32,
+	visual_offset: linalg.Vector3f32,
 	target: linalg.Vector3f32,
 	up:     linalg.Vector3f32,
 	aspect: f32,

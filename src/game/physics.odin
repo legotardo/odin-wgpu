@@ -14,6 +14,7 @@ system_physics :: proc(state: ^GameState, dt: f32) {
 		t := &state.world.transforms[i]
 		p := &state.world.physics[i]
 		c := &state.world.colliders[i]
+		did_auto_step := false
 
         p.velocity.y -= constants.GRAVITY * dt
 
@@ -49,15 +50,46 @@ system_physics :: proc(state: ^GameState, dt: f32) {
             p.is_grounded = false
         }
 
-        t.position.x += p.velocity.x * dt
-        if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
-            t.position.x -= p.velocity.x * dt
-            p.velocity.x = 0
-        }
-        t.position.z += p.velocity.z * dt
-        if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
-            t.position.z -= p.velocity.z * dt
-            p.velocity.z = 0
-        }
+		// TODO: Maybe move this to another place
+		can_auto_step := u32(i) == state.player_idx && p.is_grounded
+
+		t.position.x += p.velocity.x * dt
+		if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
+			if can_auto_step {
+				t.position.y += PLAYER_AUTO_STEP_HEIGHT
+				if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
+					t.position.y -= PLAYER_AUTO_STEP_HEIGHT
+					t.position.x -= p.velocity.x * dt
+					p.velocity.x = 0
+				} else {
+					did_auto_step = true
+					p.velocity.y = 0
+				}
+			} else {
+				t.position.x -= p.velocity.x * dt
+				p.velocity.x = 0
+			}
+		}
+		t.position.z += p.velocity.z * dt
+		if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
+			if can_auto_step && !did_auto_step {
+				t.position.y += PLAYER_AUTO_STEP_HEIGHT
+				if world_check_collision(state.world, aabb_by_collider(t.position, c)) {
+					t.position.y -= PLAYER_AUTO_STEP_HEIGHT
+					t.position.z -= p.velocity.z * dt
+					p.velocity.z = 0
+				} else {
+					did_auto_step = true
+					p.velocity.y = 0
+				}
+			} else {
+				t.position.z -= p.velocity.z * dt
+				p.velocity.z = 0
+			}
+		}
+
+		if did_auto_step {
+			state.world.cameras[i].visual_offset.y -= PLAYER_AUTO_STEP_HEIGHT
+		}
     }
 }

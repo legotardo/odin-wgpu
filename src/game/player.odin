@@ -1,9 +1,14 @@
 package game
 
+import "core:math"
 import "../ecs"
 import "../platform"
 import "../input"
+import "../constants"
 import "core:math/linalg"
+
+PLAYER_AUTO_STEP_HEIGHT :: constants.BLOCK_SIZE + 0.001
+PLAYER_CAMERA_STEP_SMOOTHING :: 14.0
 
 spawn_player :: proc(state: ^GameState) {
 	width, height := platform.get_frame_size(state.window)
@@ -104,21 +109,23 @@ system_update_player :: proc(state: ^GameState, dt: f32) {
 			}
 		}
 
+		flat_forward := linalg.Vector3f32{forward.x, 0.0, forward.z}
+		if linalg.length(flat_forward) > 0 {
+			flat_forward = linalg.normalize(flat_forward)
+		}
 		if linalg.length(input_dir) > 0 {
 			input_dir = linalg.normalize(input_dir)
 		}
 
-		if has_physics {
-			flat_forward := linalg.Vector3f32{forward.x, 0.0, forward.z}
-			if linalg.length(flat_forward) > 0 {
-				flat_forward = linalg.normalize(flat_forward)
-			}
-			
-			move_dir := (flat_forward * input_dir.z) + (right * input_dir.x)
-			if linalg.length(move_dir) > 0 {
-				move_dir = linalg.normalize(move_dir)
-			}
+		move_dir := (flat_forward * input_dir.z) + (right * input_dir.x)
+		if linalg.length(move_dir) > 0 {
+			move_dir = linalg.normalize(move_dir)
+		}
 
+		cam.visual_offset.y *= math.exp(-PLAYER_CAMERA_STEP_SMOOTHING * dt)
+		if math.abs(cam.visual_offset.y) < 0.001 do cam.visual_offset.y = 0
+
+		if has_physics {
 			p.velocity.x += move_dir.x * speed * dt
 			p.velocity.z += move_dir.z * speed * dt
 		} else {
